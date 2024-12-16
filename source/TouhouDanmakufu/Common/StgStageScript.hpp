@@ -161,14 +161,20 @@ public:
 		TARGET_ENEMY,
 		TARGET_PLAYER,
 	};
+
 protected:
 	StgStageController* stageController_;
+
 public:
+
 	StgStageScript(StgStageController* stageController);
 	virtual ~StgStageScript();
 
 	StgStageController* GetStageController() { return stageController_; }
 	std::shared_ptr<StgStageScriptObjectManager> GetStgObjectManager();
+
+	// online
+	static gstd::value Func_SaveEntryToLeaderboard(gstd::script_machine* machine, int argc, const gstd::value* argv);
 
 	//STG共通関数：共通データ
 	static gstd::value Func_SaveCommonDataAreaToReplayFile(gstd::script_machine* machine, int argc, const gstd::value* argv);

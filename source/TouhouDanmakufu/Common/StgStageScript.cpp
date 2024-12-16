@@ -779,6 +779,54 @@ shared_ptr<StgStageScriptObjectManager> StgStageScript::GetStgObjectManager() {
 	return scriptManager->GetObjectManager();
 }
 
+// connect to leaderboard
+gstd::value StgStageScript::Func_SaveEntryToLeaderboard(gstd::script_machine* machine, int argc, const gstd::value* argv) {
+
+	// arguments: leaderboard PRIVATE CODE, name, score, string comment. argc has 4 indexes 0 to 3
+	// 
+	// set host for request, insert id
+
+	char host[] = "http://dreamlo.com/lb/";
+
+	// im killing myself
+
+	std::string hostString{ host };
+	std::wstring hostLink = s2ws(hostString);
+	std::wstring leaderboardIDWide = argv[0].as_string();
+
+	//std::wstring leaderboardLinkWide = hostLink += argv[0].as_string();
+
+	std::string leaderboardID;
+	std::transform(leaderboardIDWide.begin(), leaderboardIDWide.end(), std::back_inserter(leaderboardID), [](wchar_t c) {
+		return (char)c;
+		});
+
+	sf::Http http;
+	http.setHost(hostString);
+
+	sf::Http::Request request;
+
+	request.setMethod(sf::Http::Request::Post);
+
+	request.setUri(leaderboardID); // leaderboardID
+	 
+	request.setHttpVersion(1, 1); // HTTP 1.1
+	request.setField("From", "me");
+	request.setField("Content-Type", "application/x-www-form-urlencoded");
+	request.setBody("para1=value1&param2=value2");
+
+	sf::Http::Response response = http.sendRequest(request);
+
+}
+
+std::wstring s2ws(const std::string& str)
+{
+	int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
+	std::wstring wstrTo(size_needed, 0);
+	MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0], size_needed);
+	return wstrTo;
+}
+
 //STG制御共通関数：共通データ
 gstd::value StgStageScript::Func_SaveCommonDataAreaToReplayFile(gstd::script_machine* machine, int argc, const gstd::value* argv) {
 	StgStageScript* script = (StgStageScript*)machine->data;
@@ -805,6 +853,7 @@ gstd::value StgStageScript::Func_SaveCommonDataAreaToReplayFile(gstd::script_mac
 
 	return script->CreateBooleanValue(res);
 }
+
 gstd::value StgStageScript::Func_LoadCommonDataAreaFromReplayFile(gstd::script_machine* machine, int argc, const gstd::value* argv) {
 	StgStageScript* script = (StgStageScript*)machine->data;
 	StgStageController* stageController = script->stageController_;
@@ -842,6 +891,7 @@ gstd::value StgStageScript::Func_GetMainStgScriptPath(gstd::script_machine* mach
 
 	return script->CreateStringValue(path);
 }
+
 gstd::value StgStageScript::Func_GetMainStgScriptDirectory(gstd::script_machine* machine, int argc, const gstd::value* argv) {
 	StgStageScript* script = (StgStageScript*)machine->data;
 	StgStageController* stageController = script->stageController_;

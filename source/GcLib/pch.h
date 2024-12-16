@@ -155,6 +155,11 @@
 
 //-------------------------------External stuffs--------------------------------
 
+// yes
+
+#include <locale>
+#include <codecvt>
+
 // zlib
 
 #if defined(DNH_PROJ_EXECUTOR) || defined(DNH_PROJ_FILEARCHIVER)
@@ -176,6 +181,22 @@
 	//#pragma comment(lib, "vorbis_dynamic.lib")
 	#pragma comment(lib, "vorbisfile_static.lib")
 #endif
+
+// sfml
+
+#if defined(DNH_PROJ_EXECUTOR)
+	#include <sfml/Network.hpp>
+
+	#pragma comment(lib, "sfml_network_static.lib")
+
+#endif
+
+// rapidxml
+
+#if defined(DNH_PROJ_EXECUTOR)
+	#include <rapidxml/rapidxml.hpp>
+#endif
+
 
 //------------------------------------------------------------------------------
 
