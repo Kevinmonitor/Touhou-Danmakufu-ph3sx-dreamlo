@@ -179,6 +179,7 @@ public:
 	// online
 
 	DNH_FUNCAPI_DECL_(Func_SaveEntryToLeaderboard);
+	DNH_FUNCAPI_DECL_(Func_HTTPGetRequest);
 	DNH_FUNCAPI_DECL_(Func_GetLeaderboardData);
 
 	//STG共通関数：共通データ
