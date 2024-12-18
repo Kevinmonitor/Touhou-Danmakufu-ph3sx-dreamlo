@@ -131,6 +131,9 @@
 
 #include <regex>
 
+#include <iostream>
+#include <new>
+
 //-------------------------------External stuffs--------------------------------
 
 //zlib
@@ -150,6 +153,27 @@
 //#pragma comment(lib, "vorbis_dynamic.lib")
 #pragma comment(lib, "vorbisfile_static.lib")
 #endif
+
+// sfml
+
+#if defined(DNH_PROJ_EXECUTOR)
+
+	#include <sfml/Network.hpp>
+	#pragma comment(lib, "sfml_network_static.lib")
+	#pragma comment(lib, "ws2_32.lib")
+
+#endif
+
+// rapidxml
+
+//#if defined(DNH_PROJ_EXECUTOR)
+//
+//	#include <rapidxml/rapidxml.hpp>
+//	#include <rapidxml/rapidxml_iterators.hpp>
+//	#include <rapidxml/rapidxml_print.hpp>
+//	#include <rapidxml/rapidxml_utils.hpp>
+//
+//#endif
 
 //------------------------------------------------------------------------------
 
