@@ -1,4 +1,8 @@
 #include "source/GcLib/pch.h"
+#include "rapidxml/rapidxml.hpp"
+#include "rapidxml/rapidxml_iterators.hpp"
+#include "rapidxml/rapidxml_print.hpp"
+#include "rapidxml/rapidxml_utils.hpp"
 
 #include "StgStageScript.hpp"
 #include "StgSystem.hpp"
@@ -231,6 +235,14 @@ int StgStageScriptObjectManager::CreatePlayerObject() {
 //StgStageScript
 //*******************************************************************
 static const std::vector<function> stgStageFunction = {
+
+	// online cock and balls
+
+	{ "SaveEntryToLeaderboard", StgStageScript::Func_SaveEntryToLeaderboard, 4 },
+	
+	// leaderboard public code -> leaderboard data type
+	{ "GetLeaderboardData", StgStageScript::Func_GetLeaderboardData, 2},
+
 	//STG共通関数：共通データ
 	{ "SaveCommonDataAreaToReplayFile", StgStageScript::Func_SaveCommonDataAreaToReplayFile, 1 },
 	{ "LoadCommonDataAreaFromReplayFile", StgStageScript::Func_LoadCommonDataAreaFromReplayFile, 1 },
@@ -573,6 +585,13 @@ static const std::vector<function> stgStageFunction = {
 	{ "ObjCol_GetIntersectedCount", StgStageScript::Func_ObjCol_GetIntersectedCount, 1 },
 };
 static const std::vector<constant> stgStageConstant = {
+
+	// replay
+	constant("LEADERBOARD_NAME", StgStageScript::LEADERBOARD_NAME),
+	constant("LEADERBOARD_SCORE", StgStageScript::LEADERBOARD_SCORE),
+	constant("LEADERBOARD_COMMENT", StgStageScript::LEADERBOARD_COMMENT),
+
+	// type
 	constant("TYPE_ALL", StgStageScript::TYPE_ALL),
 	constant("TYPE_SHOT", StgStageScript::TYPE_SHOT),
 	constant("TYPE_CHILD", StgStageScript::TYPE_CHILD),
@@ -781,6 +800,8 @@ shared_ptr<StgStageScriptObjectManager> StgStageScript::GetStgObjectManager() {
 
 // connect to leaderboard
 gstd::value StgStageScript::Func_SaveEntryToLeaderboard(gstd::script_machine* machine, int argc, const gstd::value* argv) {
+	
+	StgStageScript* script = (StgStageScript*)machine->data;
 
 	// arguments: leaderboard PRIVATE CODE, name, score, string comment. argc has 4 indexes 0 to 3
 	// 
@@ -788,43 +809,116 @@ gstd::value StgStageScript::Func_SaveEntryToLeaderboard(gstd::script_machine* ma
 
 	char host[] = "http://dreamlo.com/lb/";
 
-	// im killing myself
-
 	std::string hostString{ host };
-	std::wstring hostLink = s2ws(hostString);
-	std::wstring leaderboardIDWide = argv[0].as_string();
 
 	//std::wstring leaderboardLinkWide = hostLink += argv[0].as_string();
 
-	std::string leaderboardID;
-	std::transform(leaderboardIDWide.begin(), leaderboardIDWide.end(), std::back_inserter(leaderboardID), [](wchar_t c) {
-		return (char)c;
-		});
+	std::string leaderboardID = STR_MULTI(argv[0].as_string());
+	std::string leaderboardName = STR_MULTI(argv[1].as_string());
+	std::string leaderboardScore = STR_MULTI(argv[2].as_string());
+	std::string leaderboardComment = STR_MULTI(argv[3].as_string());
 
 	sf::Http http;
 	http.setHost(hostString);
 
 	sf::Http::Request request;
 
+	std::string leaderboardSubmissionUri = "/" + leaderboardID + "/add/" + leaderboardName + "/" + leaderboardScore + "/1/" + leaderboardComment;
+
 	request.setMethod(sf::Http::Request::Post);
+	request.setUri(leaderboardSubmissionUri); // leaderboardID
 
-	request.setUri(leaderboardID); // leaderboardID
-	 
-	request.setHttpVersion(1, 1); // HTTP 1.1
-	request.setField("From", "me");
-	request.setField("Content-Type", "application/x-www-form-urlencoded");
-	request.setBody("para1=value1&param2=value2");
+	sf::Http::Response response = http.sendRequest(request, sf::seconds(10.0));
 
-	sf::Http::Response response = http.sendRequest(request);
+	// wait for a maximum of 10 seconds. return whether sending the request was successful.
+
+	return script->CreateBooleanValue(response.getStatus() == sf::Http::Response::Ok);
 
 }
 
-std::wstring s2ws(const std::string& str)
-{
-	int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
-	std::wstring wstrTo(size_needed, 0);
-	MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0], size_needed);
-	return wstrTo;
+gstd::value StgStageScript::Func_GetLeaderboardData(gstd::script_machine* machine, int argc, const gstd::value* argv) {
+
+	StgStageScript* script = (StgStageScript*)machine->data;
+
+	// arguments: leaderboard PUBLIC CODE, DATA TYPE
+	// 
+	// returns an array of one of these.
+	// [names][scores]["comments"]
+	//
+	// set host for request, insert id
+
+	// valid: "LEADERBOARD_NAME", "LEADERBOARD_SCORE", "LEADERBOARD_COMMENT"
+
+	char host[] = "http://dreamlo.com/lb/";
+
+	// this is so terrible. im killing myself
+
+	std::string hostString{ host };
+
+	std::string leaderboardID = STR_MULTI(argv[0].as_string());
+	int leaderboardDataType = argv[1].as_int();
+
+	sf::Http http;
+	http.setHost(hostString);
+
+	sf::Http::Request request;
+
+	std::string leaderboardRequestUri = "/" + leaderboardID + "/xml";
+
+	request.setMethod(sf::Http::Request::Get);
+	request.setUri(leaderboardRequestUri); // leaderboardID
+
+	sf::Http::Response response = http.sendRequest(request, sf::seconds(10.0));
+	std::string responseData = response.getBody();
+
+	std::cin >> responseData;
+	std::ofstream out("score.xml");
+	out << responseData;
+	out.close();
+
+	rapidxml::file<> xmlFile("score.xml"); // fuck
+	rapidxml::xml_document<> doc;
+	doc.parse<0>(xmlFile.data());
+
+	std::vector<std::string> result;
+
+	// MAKE SURE TO DELETE THE FILE IMMEDIATELY AFTER YOURE DONE
+
+	// Find our root node
+	rapidxml::xml_node<>* root_node;
+	root_node = doc.first_node("dreamlo");
+
+	switch (leaderboardDataType) {
+	case LEADERBOARD_NAME:
+		for (
+			rapidxml::xml_node<>* entry_node = root_node->first_node("leaderboard")->next_sibling("entry"); entry_node; entry_node = entry_node->next_sibling()
+			)
+		{
+			result.push_back(entry_node->first_node("name")->value());
+		}
+		break;
+	case LEADERBOARD_SCORE:
+		for (
+			rapidxml::xml_node<>* entry_node = root_node->first_node("leaderboard")->next_sibling("entry"); entry_node; entry_node = entry_node->next_sibling()
+			)
+		{
+			result.push_back(entry_node->first_node("score")->value());
+		}
+		break;
+	case LEADERBOARD_COMMENT:
+		for (
+			rapidxml::xml_node<>* entry_node = root_node->first_node("leaderboard")->next_sibling("entry"); entry_node; entry_node = entry_node->next_sibling()
+			)
+		{
+			result.push_back(entry_node->first_node("text")->value());
+		}
+		break;
+	}
+
+	std::remove("score.xml");
+
+	return script->CreateStringArrayValue(result);
+
 }
 
 //STG制御共通関数：共通データ

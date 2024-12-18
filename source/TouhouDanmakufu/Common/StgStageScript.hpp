@@ -70,7 +70,13 @@ class StgStageScript : public StgControlScript {
 	friend StgStageScriptManager;
 public:
 	enum {
-		//Script types
+
+		// Replay
+		LEADERBOARD_NAME,
+		LEADERBOARD_SCORE,
+		LEADERBOARD_COMMENT,
+
+		// Script types
 		TYPE_SYSTEM,
 		TYPE_STAGE,
 		TYPE_PLAYER,
@@ -174,7 +180,9 @@ public:
 	std::shared_ptr<StgStageScriptObjectManager> GetStgObjectManager();
 
 	// online
-	static gstd::value Func_SaveEntryToLeaderboard(gstd::script_machine* machine, int argc, const gstd::value* argv);
+
+	DNH_FUNCAPI_DECL_(Func_SaveEntryToLeaderboard);
+	DNH_FUNCAPI_DECL_(Func_GetLeaderboardData);
 
 	//STG共通関数：共通データ
 	static gstd::value Func_SaveCommonDataAreaToReplayFile(gstd::script_machine* machine, int argc, const gstd::value* argv);
