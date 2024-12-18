@@ -10,6 +10,41 @@
 #include "StgShot.hpp"
 #include "StgItem.hpp"
 
+std::string statusToString(sf::Http::Response::Status status) {
+
+	switch (status) {
+	case sf::Http::Response::Ok: return "OK";
+	case sf::Http::Response::Created: return "CREATED";
+	case sf::Http::Response::Accepted: return "ACCEPTED";
+	case sf::Http::Response::NoContent: return "NOCON";
+	case sf::Http::Response::ResetContent: return "RESETCON";
+	case sf::Http::Response::PartialContent: return "PARTIALCON";
+
+	case sf::Http::Response::MultipleChoices: return "MULTIPLE";
+	case sf::Http::Response::MovedPermanently: return "PERMAMOVED";
+	case sf::Http::Response::MovedTemporarily: return "TEMPMOVED";
+	case sf::Http::Response::NotModified: return "NOTMODIFIED";
+
+	case sf::Http::Response::BadRequest: return "BADREQUEST";
+	case sf::Http::Response::Unauthorized: return "UNAUTHORIZED";
+	case sf::Http::Response::Forbidden: return "FORBIDDEN";
+	case sf::Http::Response::NotFound: return "NOTFOUND";
+	case sf::Http::Response::RangeNotSatisfiable: return "BADRANGE";
+
+	case sf::Http::Response::InternalServerError: return "INTERNALSERVERERROR";
+	case sf::Http::Response::NotImplemented: return "NOTIMPLEMENTED";
+	case sf::Http::Response::BadGateway: return "BADGATEWAY";
+	case sf::Http::Response::ServiceNotAvailable: return "NOSERVICE";
+	case sf::Http::Response::GatewayTimeout: return "TIMEOUT";
+	case sf::Http::Response::VersionNotSupported: return "VERSIONUNSUPPORTED";
+
+	case sf::Http::Response::InvalidResponse: return "1000";
+	case sf::Http::Response::ConnectionFailed: return "1001";
+	}
+	return "UNKNOWN";
+
+}
+
 //*******************************************************************
 //StgStageScriptManager
 //*******************************************************************
@@ -239,6 +274,7 @@ static const std::vector<function> stgStageFunction = {
 	// online cock and balls
 
 	{ "SaveEntryToLeaderboard", StgStageScript::Func_SaveEntryToLeaderboard, 4 },
+	{ "HTTPGetRequest", StgStageScript::Func_HTTPGetRequest, 3 },
 	
 	// leaderboard public code -> leaderboard data type
 	{ "GetLeaderboardData", StgStageScript::Func_GetLeaderboardData, 2},
@@ -805,7 +841,7 @@ gstd::value StgStageScript::Func_SaveEntryToLeaderboard(gstd::script_machine* ma
 	// 
 	// set host for request, insert id
 
-	char host[] = "http://dreamlo.com/lb/";
+	char host[] = "http://dreamlo.com/";
 
 	std::string hostString{ host };
 
@@ -816,18 +852,47 @@ gstd::value StgStageScript::Func_SaveEntryToLeaderboard(gstd::script_machine* ma
 	std::string leaderboardScore = STR_MULTI(argv[2].as_string());
 	std::string leaderboardComment = STR_MULTI(argv[3].as_string());
 
+	std::string leaderboardSubmissionUri = "lb/" + leaderboardID + "/add/" + leaderboardName + "/" + leaderboardScore + "/1/" + leaderboardComment;
+
 	sf::Http http;
-	http.setHost(hostString);
+	http.setHost(hostString + leaderboardSubmissionUri);
 
 	sf::Http::Request request;
-
-	std::string leaderboardSubmissionUri = "/" + leaderboardID + "/add/" + leaderboardName + "/" + leaderboardScore + "/1/" + leaderboardComment;
-
-	request.setMethod(sf::Http::Request::Post);
-	request.setUri(leaderboardSubmissionUri); // leaderboardID
+	request.setMethod(sf::Http::Request::Get);
+	request.setUri("/");
 
 	sf::Http::Response response = http.sendRequest(request, sf::seconds(10.0));
 
+	Logger::WriteTop(ILogger::LogType::User1, "link is... " + hostString + leaderboardSubmissionUri);
+	//Logger::WriteTop(ILogger::LogType::User1, statusToString(response.getStatus()));
+	// wait for a maximum of 10 seconds. return whether sending the request was successful.
+
+	return script->CreateBooleanValue(response.getStatus() == sf::Http::Response::Ok);
+
+}
+
+gstd::value StgStageScript::Func_HTTPGetRequest(gstd::script_machine* machine, int argc, const gstd::value* argv) {
+
+	StgStageScript* script = (StgStageScript*)machine->data;
+
+	// arguments: host, uri, timeout
+	// 
+	// set host for request, insert id
+
+	sf::Http http;
+	http.setHost(STR_MULTI(argv[0].as_string()));
+
+	sf::Http::Request request;
+	request.setMethod(sf::Http::Request::Get);
+	request.setUri(STR_MULTI(argv[1].as_string()));
+
+	sf::Http::Response response = http.sendRequest(request, sf::seconds(argv[2].as_float()));
+	sf::Http::Response::Status result = response.getStatus();
+	std::string resultToString = statusToString(result);
+
+	Logger::WriteTop(ILogger::LogType::User1, "host:" + STR_MULTI(argv[0].as_string()));
+	Logger::WriteTop(ILogger::LogType::User1, "uri:" + STR_MULTI(argv[1].as_string()));
+	Logger::WriteTop(ILogger::LogType::User1, resultToString);
 	// wait for a maximum of 10 seconds. return whether sending the request was successful.
 
 	return script->CreateBooleanValue(response.getStatus() == sf::Http::Response::Ok);
