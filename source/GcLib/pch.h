@@ -55,6 +55,7 @@
 #define NOSOUND
 
 #include <windows.h>	// Obviously
+//#include <winsock2.h>   // networking
 #include <commctrl.h>	// For a lot of stuff in Window.cpp
 
 #pragma comment (lib, "comctl32.lib")
@@ -153,6 +154,9 @@
 
 #include <regex>
 
+#include <iostream>
+#include <new>
+
 //-------------------------------External stuffs--------------------------------
 
 // yes
@@ -185,18 +189,23 @@
 // sfml
 
 #if defined(DNH_PROJ_EXECUTOR)
-	#include <sfml/Network.hpp>
 
+	#include <sfml/Network.hpp>
 	#pragma comment(lib, "sfml_network_static.lib")
+	#pragma comment(lib, "ws2_32.lib")
 
 #endif
 
 // rapidxml
 
-#if defined(DNH_PROJ_EXECUTOR)
-	#include <rapidxml/rapidxml.hpp>
-#endif
-
+//#if defined(DNH_PROJ_EXECUTOR)
+//
+//	#include <rapidxml/rapidxml.hpp>
+//	#include <rapidxml/rapidxml_iterators.hpp>
+//	#include <rapidxml/rapidxml_print.hpp>
+//	#include <rapidxml/rapidxml_utils.hpp>
+//
+//#endif
 
 //------------------------------------------------------------------------------
 
