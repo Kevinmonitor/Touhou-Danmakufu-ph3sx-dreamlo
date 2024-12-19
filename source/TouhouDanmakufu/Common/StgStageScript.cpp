@@ -847,10 +847,10 @@ gstd::value StgStageScript::Func_SaveEntryToLeaderboard(gstd::script_machine* ma
 
 	//std::wstring leaderboardLinkWide = hostLink += argv[0].as_string();
 
-	std::string leaderboardID = STR_MULTI(argv[0].as_string());
-	std::string leaderboardName = STR_MULTI(argv[1].as_string());
-	std::string leaderboardScore = STR_MULTI(argv[2].as_string());
-	std::string leaderboardComment = STR_MULTI(argv[3].as_string());
+	std::string leaderboardID = StringUtility::ConvertWideToMulti(argv[0].as_string());
+	std::string leaderboardName = StringUtility::ConvertWideToMulti(argv[1].as_string());
+	std::string leaderboardScore = StringUtility::ConvertWideToMulti(argv[2].as_string());
+	std::string leaderboardComment = StringUtility::ConvertWideToMulti(argv[3].as_string());
 
 	std::string leaderboardSubmissionUri = "lb/" + leaderboardID + "/add/" + leaderboardName + "/" + leaderboardScore + "/1/" + leaderboardComment;
 
@@ -863,8 +863,8 @@ gstd::value StgStageScript::Func_SaveEntryToLeaderboard(gstd::script_machine* ma
 
 	sf::Http::Response response = http.sendRequest(request, sf::seconds(10.0));
 
-	Logger::WriteTop(ILogger::LogType::User1, "link is... " + hostString + leaderboardSubmissionUri);
-	//Logger::WriteTop(ILogger::LogType::User1, statusToString(response.getStatus()));
+	Logger::WriteTop("link is... " + hostString + leaderboardSubmissionUri);
+	//Logger::WriteTop(statusToString(response.getStatus()));
 	// wait for a maximum of 10 seconds. return whether sending the request was successful.
 
 	return script->CreateBooleanValue(response.getStatus() == sf::Http::Response::Ok);
@@ -880,19 +880,19 @@ gstd::value StgStageScript::Func_HTTPGetRequest(gstd::script_machine* machine, i
 	// set host for request, insert id
 
 	sf::Http http;
-	http.setHost(STR_MULTI(argv[0].as_string()));
+	http.setHost(StringUtility::ConvertWideToMulti(argv[0].as_string()));
 
 	sf::Http::Request request;
 	request.setMethod(sf::Http::Request::Get);
-	request.setUri(STR_MULTI(argv[1].as_string()));
+	request.setUri(StringUtility::ConvertWideToMulti(argv[1].as_string()));
 
 	sf::Http::Response response = http.sendRequest(request, sf::seconds(argv[2].as_float()));
 	sf::Http::Response::Status result = response.getStatus();
 	std::string resultToString = statusToString(result);
 
-	Logger::WriteTop(ILogger::LogType::User1, "host:" + STR_MULTI(argv[0].as_string()));
-	Logger::WriteTop(ILogger::LogType::User1, "uri:" + STR_MULTI(argv[1].as_string()));
-	Logger::WriteTop(ILogger::LogType::User1, resultToString);
+	Logger::WriteTop("host:" + StringUtility::ConvertWideToMulti(argv[0].as_string()));
+	Logger::WriteTop("uri:" + StringUtility::ConvertWideToMulti(argv[1].as_string()));
+	Logger::WriteTop(resultToString);
 	// wait for a maximum of 10 seconds. return whether sending the request was successful.
 
 	return script->CreateBooleanValue(response.getStatus() == sf::Http::Response::Ok);
@@ -918,7 +918,7 @@ gstd::value StgStageScript::Func_GetLeaderboardData(gstd::script_machine* machin
 
 	std::string hostString{ host };
 
-	std::string leaderboardID = STR_MULTI(argv[0].as_string());
+	std::string leaderboardID = StringUtility::ConvertWideToMulti(argv[0].as_string());
 	int leaderboardDataType = argv[1].as_int();
 
 	sf::Http http;
