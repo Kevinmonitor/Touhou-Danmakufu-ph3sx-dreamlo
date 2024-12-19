@@ -71,11 +71,6 @@ class StgStageScript : public StgControlScript {
 public:
 	enum {
 
-		// Replay
-		LEADERBOARD_NAME,
-		LEADERBOARD_SCORE,
-		LEADERBOARD_COMMENT,
-
 		// Script types
 		TYPE_SYSTEM,
 		TYPE_STAGE,

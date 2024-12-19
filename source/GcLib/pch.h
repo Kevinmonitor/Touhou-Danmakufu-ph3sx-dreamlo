@@ -151,11 +151,10 @@
 
 #include <fstream>
 #include <sstream>
-
-#include <regex>
-
 #include <iostream>
 #include <new>
+
+#include <regex>
 
 //-------------------------------External stuffs--------------------------------
 

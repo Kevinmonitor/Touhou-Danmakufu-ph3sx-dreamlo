@@ -10,40 +10,40 @@
 #include "StgShot.hpp"
 #include "StgItem.hpp"
 
-std::string statusToString(sf::Http::Response::Status status) {
-
-	switch (status) {
-	case sf::Http::Response::Ok: return "OK";
-	case sf::Http::Response::Created: return "CREATED";
-	case sf::Http::Response::Accepted: return "ACCEPTED";
-	case sf::Http::Response::NoContent: return "NOCON";
-	case sf::Http::Response::ResetContent: return "RESETCON";
-	case sf::Http::Response::PartialContent: return "PARTIALCON";
-
-	case sf::Http::Response::MultipleChoices: return "MULTIPLE";
-	case sf::Http::Response::MovedPermanently: return "PERMAMOVED";
-	case sf::Http::Response::MovedTemporarily: return "TEMPMOVED";
-	case sf::Http::Response::NotModified: return "NOTMODIFIED";
-
-	case sf::Http::Response::BadRequest: return "BADREQUEST";
-	case sf::Http::Response::Unauthorized: return "UNAUTHORIZED";
-	case sf::Http::Response::Forbidden: return "FORBIDDEN";
-	case sf::Http::Response::NotFound: return "NOTFOUND";
-	case sf::Http::Response::RangeNotSatisfiable: return "BADRANGE";
-
-	case sf::Http::Response::InternalServerError: return "INTERNALSERVERERROR";
-	case sf::Http::Response::NotImplemented: return "NOTIMPLEMENTED";
-	case sf::Http::Response::BadGateway: return "BADGATEWAY";
-	case sf::Http::Response::ServiceNotAvailable: return "NOSERVICE";
-	case sf::Http::Response::GatewayTimeout: return "TIMEOUT";
-	case sf::Http::Response::VersionNotSupported: return "VERSIONUNSUPPORTED";
-
-	case sf::Http::Response::InvalidResponse: return "1000";
-	case sf::Http::Response::ConnectionFailed: return "1001";
-	}
-	return "UNKNOWN";
-
-}
+//std::string statusToString(sf::Http::Response::Status status) {
+//
+//	switch (status) {
+//	case sf::Http::Response::Ok: return "OK";
+//	case sf::Http::Response::Created: return "CREATED";
+//	case sf::Http::Response::Accepted: return "ACCEPTED";
+//	case sf::Http::Response::NoContent: return "NOCON";
+//	case sf::Http::Response::ResetContent: return "RESETCON";
+//	case sf::Http::Response::PartialContent: return "PARTIALCON";
+//
+//	case sf::Http::Response::MultipleChoices: return "MULTIPLE";
+//	case sf::Http::Response::MovedPermanently: return "PERMAMOVED";
+//	case sf::Http::Response::MovedTemporarily: return "TEMPMOVED";
+//	case sf::Http::Response::NotModified: return "NOTMODIFIED";
+//
+//	case sf::Http::Response::BadRequest: return "BADREQUEST";
+//	case sf::Http::Response::Unauthorized: return "UNAUTHORIZED";
+//	case sf::Http::Response::Forbidden: return "FORBIDDEN";
+//	case sf::Http::Response::NotFound: return "NOTFOUND";
+//	case sf::Http::Response::RangeNotSatisfiable: return "BADRANGE";
+//
+//	case sf::Http::Response::InternalServerError: return "INTERNALSERVERERROR";
+//	case sf::Http::Response::NotImplemented: return "NOTIMPLEMENTED";
+//	case sf::Http::Response::BadGateway: return "BADGATEWAY";
+//	case sf::Http::Response::ServiceNotAvailable: return "NOSERVICE";
+//	case sf::Http::Response::GatewayTimeout: return "TIMEOUT";
+//	case sf::Http::Response::VersionNotSupported: return "VERSIONUNSUPPORTED";
+//
+//	case sf::Http::Response::InvalidResponse: return "1000";
+//	case sf::Http::Response::ConnectionFailed: return "1001";
+//	}
+//	return "UNKNOWN";
+//
+//}
 
 //*******************************************************************
 //StgStageScriptManager
@@ -622,11 +622,6 @@ static const std::vector<function> stgStageFunction = {
 };
 static const std::vector<constant> stgStageConstant = {
 
-	// replay
-	constant("LEADERBOARD_NAME", StgStageScript::LEADERBOARD_NAME),
-	constant("LEADERBOARD_SCORE", StgStageScript::LEADERBOARD_SCORE),
-	constant("LEADERBOARD_COMMENT", StgStageScript::LEADERBOARD_COMMENT),
-
 	// type
 	constant("TYPE_ALL", StgStageScript::TYPE_ALL),
 	constant("TYPE_SHOT", StgStageScript::TYPE_SHOT),
@@ -890,11 +885,11 @@ gstd::value StgStageScript::Func_HTTPGetRequest(gstd::script_machine* machine, i
 
 	sf::Http::Response response = http.sendRequest(request, sf::seconds(argv[2].as_float()));
 	sf::Http::Response::Status result = response.getStatus();
-	std::string resultToString = statusToString(result);
+	//std::string resultToString = statusToString(result);
 
 	Logger::WriteTop(ILogger::LogType::User1, "host:" + STR_MULTI(argv[0].as_string()));
 	Logger::WriteTop(ILogger::LogType::User1, "uri:" + STR_MULTI(argv[1].as_string()));
-	Logger::WriteTop(ILogger::LogType::User1, resultToString);
+	//Logger::WriteTop(ILogger::LogType::User1, resultToString);
 	// wait for a maximum of 10 seconds. return whether sending the request was successful.
 
 	return script->CreateBooleanValue(response.getStatus() == sf::Http::Response::Ok);
@@ -914,7 +909,7 @@ gstd::value StgStageScript::Func_GetLeaderboardData(gstd::script_machine* machin
 
 	// valid: "LEADERBOARD_NAME", "LEADERBOARD_SCORE", "LEADERBOARD_COMMENT"
 
-	char host[] = "http://dreamlo.com/lb/";
+	char host[] = "http://dreamlo.com/";
 
 	// this is so terrible. im killing myself
 
@@ -922,6 +917,8 @@ gstd::value StgStageScript::Func_GetLeaderboardData(gstd::script_machine* machin
 
 	std::string leaderboardID = STR_MULTI(argv[0].as_string());
 	int leaderboardDataType = argv[1].as_int();
+
+	std::vector<std::string> values = { "NAME", "SCORE", "COMMENT" };
 
 	sf::Http http;
 	http.setHost(hostString);
@@ -954,30 +951,31 @@ gstd::value StgStageScript::Func_GetLeaderboardData(gstd::script_machine* machin
 	root_node = doc.first_node("dreamlo");
 
 	switch (leaderboardDataType) {
-	case LEADERBOARD_NAME:
-		for (
-			rapidxml::xml_node<>* entry_node = root_node->first_node("leaderboard")->next_sibling("entry"); entry_node; entry_node = entry_node->next_sibling()
-			)
-		{
-			result.push_back(entry_node->first_node("name")->value());
-		}
-		break;
-	case LEADERBOARD_SCORE:
-		for (
-			rapidxml::xml_node<>* entry_node = root_node->first_node("leaderboard")->next_sibling("entry"); entry_node; entry_node = entry_node->next_sibling()
-			)
-		{
-			result.push_back(entry_node->first_node("score")->value());
-		}
-		break;
-	case LEADERBOARD_COMMENT:
-		for (
-			rapidxml::xml_node<>* entry_node = root_node->first_node("leaderboard")->next_sibling("entry"); entry_node; entry_node = entry_node->next_sibling()
-			)
-		{
-			result.push_back(entry_node->first_node("text")->value());
-		}
-		break;
+		case 0:
+			for (
+				rapidxml::xml_node<>* entry_node = root_node->first_node("leaderboard")->next_sibling("entry"); entry_node; entry_node = entry_node->next_sibling()
+				)
+			{
+				result.push_back(entry_node->first_node("name")->value());
+			}
+			break;
+		case 1:
+			for (
+				rapidxml::xml_node<>* entry_node = root_node->first_node("leaderboard")->next_sibling("entry"); entry_node; entry_node = entry_node->next_sibling()
+				)
+			{
+				result.push_back(entry_node->first_node("score")->value());
+			}
+			break;
+		case 2:
+			for (
+				rapidxml::xml_node<>* entry_node = root_node->first_node("leaderboard")->next_sibling("entry"); entry_node; entry_node = entry_node->next_sibling()
+				)
+			{
+				result.push_back(entry_node->first_node("text")->value());
+			}
+			break;
+		result.push_back(0);
 	}
 
 	std::remove("score.xml");
