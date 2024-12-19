@@ -53,6 +53,7 @@
 #include <commctrl.h>	//For a lot of stuff in Window.cpp
 #include <pdh.h>		//For performance queries in Logger.cpp
 #include <wingdi.h>		//For font generation in DxText.cpp
+>>>>>>> parent of c1a015c (public execution of ph3sx in 30 minutes!)
 #pragma comment (lib, "comctl32.lib")
 #pragma comment (lib, "pdh.lib")
 #pragma comment (lib, "gdi32.lib")
@@ -154,6 +155,10 @@
 #pragma comment(lib, "vorbisfile_static.lib")
 #endif
 
+<<<<<<< Updated upstream
+=======
+<<<<<<< HEAD
+>>>>>>> Stashed changes
 // sfml
 
 #if defined(DNH_PROJ_EXECUTOR)
@@ -175,6 +180,11 @@
 //
 //#endif
 
+<<<<<<< Updated upstream
+=======
+=======
+>>>>>>> parent of c1a015c (public execution of ph3sx in 30 minutes!)
+>>>>>>> Stashed changes
 //------------------------------------------------------------------------------
 
 #if (!defined(__L_ENGINE_LEGACY))
