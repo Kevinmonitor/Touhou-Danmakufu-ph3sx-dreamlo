@@ -286,6 +286,7 @@ value StgControlScript::Func_SetAreaCommonData(script_machine* machine, int argc
 
 	return value();
 }
+
 value StgControlScript::Func_GetAreaCommonData(script_machine* machine, int argc, const value* argv) {
 	StgControlScript* script = rcast(StgControlScript*, machine->data);
 	auto commonDataManager = script->systemController_->GetCommonDataManager();
@@ -298,12 +299,14 @@ value StgControlScript::Func_GetAreaCommonData(script_machine* machine, int argc
 	if (auto pArea = commonDataManager->GetArea(area)) {
 		if (auto pValue = pArea->GetValueRef(key))
 			res = *pValue;
-		else if (argc == 3)
-			res = argv[2];
 	}
+
+	if (!res.has_data() && argc == 3)
+		res = argv[2];
 
 	return res;
 }
+
 value StgControlScript::Func_ClearAreaCommonData(script_machine* machine, int argc, const value* argv) {
 	StgControlScript* script = rcast(StgControlScript*, machine->data);
 	auto commonDataManager = script->systemController_->GetCommonDataManager();
