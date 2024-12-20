@@ -1,49 +1,10 @@
 #include "source/GcLib/pch.h"
-#include "rapidxml/rapidxml.hpp"
-#include "rapidxml/rapidxml_iterators.hpp"
-#include "rapidxml/rapidxml_print.hpp"
-#include "rapidxml/rapidxml_utils.hpp"
 
 #include "StgStageScript.hpp"
 #include "StgSystem.hpp"
 #include "StgPlayer.hpp"
 #include "StgShot.hpp"
 #include "StgItem.hpp"
-
-std::string statusToString(sf::Http::Response::Status status) {
-
-	switch (status) {
-	case sf::Http::Response::Ok: return "OK";
-	case sf::Http::Response::Created: return "CREATED";
-	case sf::Http::Response::Accepted: return "ACCEPTED";
-	case sf::Http::Response::NoContent: return "NOCON";
-	case sf::Http::Response::ResetContent: return "RESETCON";
-	case sf::Http::Response::PartialContent: return "PARTIALCON";
-
-	case sf::Http::Response::MultipleChoices: return "MULTIPLE";
-	case sf::Http::Response::MovedPermanently: return "PERMAMOVED";
-	case sf::Http::Response::MovedTemporarily: return "TEMPMOVED";
-	case sf::Http::Response::NotModified: return "NOTMODIFIED";
-
-	case sf::Http::Response::BadRequest: return "BADREQUEST";
-	case sf::Http::Response::Unauthorized: return "UNAUTHORIZED";
-	case sf::Http::Response::Forbidden: return "FORBIDDEN";
-	case sf::Http::Response::NotFound: return "NOTFOUND";
-	case sf::Http::Response::RangeNotSatisfiable: return "BADRANGE";
-
-	case sf::Http::Response::InternalServerError: return "INTERNALSERVERERROR";
-	case sf::Http::Response::NotImplemented: return "NOTIMPLEMENTED";
-	case sf::Http::Response::BadGateway: return "BADGATEWAY";
-	case sf::Http::Response::ServiceNotAvailable: return "NOSERVICE";
-	case sf::Http::Response::GatewayTimeout: return "TIMEOUT";
-	case sf::Http::Response::VersionNotSupported: return "VERSIONUNSUPPORTED";
-
-	case sf::Http::Response::InvalidResponse: return "1000";
-	case sf::Http::Response::ConnectionFailed: return "1001";
-	}
-	return "UNKNOWN";
-
-}
 
 //*******************************************************************
 //StgStageScriptManager
@@ -270,14 +231,6 @@ int StgStageScriptObjectManager::CreatePlayerObject() {
 //StgStageScript
 //*******************************************************************
 static const std::vector<function> stgStageFunction = {
-
-	// online cock and balls
-
-	{ "SaveEntryToLeaderboard", StgStageScript::Func_SaveEntryToLeaderboard, 4 },
-	{ "HTTPGetRequest", StgStageScript::Func_HTTPGetRequest, 3 },
-	
-	// leaderboard public code -> leaderboard data type
-	{ "GetLeaderboardData", StgStageScript::Func_GetLeaderboardData, 2},
 
 	//STG共通関数：共通データ
 	{ "SaveCommonDataAreaToReplayFile", StgStageScript::Func_SaveCommonDataAreaToReplayFile, 1 },
@@ -621,11 +574,6 @@ static const std::vector<function> stgStageFunction = {
 };
 static const std::vector<constant> stgStageConstant = {
 
-	// replay
-	constant("LEADERBOARD_NAME", StgStageScript::LEADERBOARD_NAME),
-	constant("LEADERBOARD_SCORE", StgStageScript::LEADERBOARD_SCORE),
-	constant("LEADERBOARD_COMMENT", StgStageScript::LEADERBOARD_COMMENT),
-
 	// type
 	constant("TYPE_ALL", StgStageScript::TYPE_ALL),
 	constant("TYPE_SHOT", StgStageScript::TYPE_SHOT),
@@ -830,165 +778,6 @@ StgStageScript::~StgStageScript() {}
 std::shared_ptr<StgStageScriptObjectManager> StgStageScript::GetStgObjectManager() {
 	StgStageScriptManager* scriptManager = (StgStageScriptManager*)scriptManager_;
 	return scriptManager->GetObjectManager();
-}
-
-// connect to leaderboard
-gstd::value StgStageScript::Func_SaveEntryToLeaderboard(gstd::script_machine* machine, int argc, const gstd::value* argv) {
-	
-	StgStageScript* script = (StgStageScript*)machine->data;
-
-	// arguments: leaderboard PRIVATE CODE, name, score, string comment. argc has 4 indexes 0 to 3
-	// 
-	// set host for request, insert id
-
-	char host[] = "http://dreamlo.com/";
-
-	std::string hostString{ host };
-
-	//std::wstring leaderboardLinkWide = hostLink += argv[0].as_string();
-
-	std::string leaderboardID = StringUtility::ConvertWideToMulti(argv[0].as_string());
-	std::string leaderboardName = StringUtility::ConvertWideToMulti(argv[1].as_string());
-	std::string leaderboardScore = StringUtility::ConvertWideToMulti(argv[2].as_string());
-	std::string leaderboardComment = StringUtility::ConvertWideToMulti(argv[3].as_string());
-
-	std::string leaderboardSubmissionUri = "lb/" + leaderboardID + "/add/" + leaderboardName + "/" + leaderboardScore + "/1/" + leaderboardComment;
-
-	sf::Http http;
-	http.setHost(hostString + leaderboardSubmissionUri);
-
-	sf::Http::Request request;
-	request.setMethod(sf::Http::Request::Get);
-	request.setUri("/");
-
-	sf::Http::Response response = http.sendRequest(request, sf::seconds(10.0));
-
-	Logger::WriteTop("link is... " + hostString + leaderboardSubmissionUri);
-	//Logger::WriteTop(statusToString(response.getStatus()));
-	// wait for a maximum of 10 seconds. return whether sending the request was successful.
-
-	return script->CreateBooleanValue(response.getStatus() == sf::Http::Response::Ok);
-
-}
-
-gstd::value StgStageScript::Func_HTTPGetRequest(gstd::script_machine* machine, int argc, const gstd::value* argv) {
-
-	StgStageScript* script = (StgStageScript*)machine->data;
-
-	// arguments: host, uri, timeout
-	// 
-	// set host for request, insert id
-
-	sf::Http http;
-	http.setHost(StringUtility::ConvertWideToMulti(argv[0].as_string()));
-
-	sf::Http::Request request;
-	request.setMethod(sf::Http::Request::Get);
-	request.setUri(StringUtility::ConvertWideToMulti(argv[1].as_string()));
-
-	sf::Http::Response response = http.sendRequest(request, sf::seconds(argv[2].as_float()));
-	sf::Http::Response::Status result = response.getStatus();
-	std::string resultToString = statusToString(result);
-
-	Logger::WriteTop("host:" + StringUtility::ConvertWideToMulti(argv[0].as_string()));
-	Logger::WriteTop("uri:" + StringUtility::ConvertWideToMulti(argv[1].as_string()));
-	Logger::WriteTop(resultToString);
-	// wait for a maximum of 10 seconds. return whether sending the request was successful.
-
-	return script->CreateBooleanValue(response.getStatus() == sf::Http::Response::Ok);
-
-}
-
-gstd::value StgStageScript::Func_GetLeaderboardData(gstd::script_machine* machine, int argc, const gstd::value* argv) {
-
-	StgStageScript* script = (StgStageScript*)machine->data;
-
-	// arguments: leaderboard PUBLIC CODE, DATA TYPE
-	// 
-	// returns an array of one of these.
-	// [names][scores]["comments"]
-	//
-	// set host for request, insert id
-
-	// valid: "LEADERBOARD_NAME", "LEADERBOARD_SCORE", "LEADERBOARD_COMMENT"
-
-	char host[] = "http://dreamlo.com/";
-
-	// this is so terrible. im killing myself
-
-	std::string hostString{ host };
-
-	std::string leaderboardID = StringUtility::ConvertWideToMulti(argv[0].as_string());
-	int leaderboardDataType = argv[1].as_int();
-
-	sf::Http http;
-	http.setHost(hostString);
-
-	sf::Http::Request request;
-
-	std::string leaderboardRequestUri = "/lb/" + leaderboardID + "/xml";
-
-	request.setMethod(sf::Http::Request::Get);
-	request.setUri(leaderboardRequestUri); // leaderboardID
-
-	sf::Http::Response response = http.sendRequest(request, sf::seconds(10.0));
-	std::string responseData = response.getBody();
-
-	std::cin >> responseData;
-	std::ofstream out("score.xml");
-	out << responseData;
-	out.close();
-
-	std::vector<char> xml_copy(responseData.begin(), responseData.end());
-	xml_copy.push_back('\0');
-
-	rapidxml::xml_document<> doc;
-
-	rapidxml::file<char> xmlFile("score.xml");
-	//doc.parse<0>(xmlFile.data());
-
-	doc.parse<rapidxml::parse_no_data_nodes>(&xml_copy[0]);
-
-	rapidxml::xml_node<>* root_node = doc.first_node("dreamlo");
-	rapidxml::xml_node<>* leaderboard_node = root_node->first_node("leaderboard");
-	//rapidxml::xml_node<>* cur_node = root_node->first_node("leaderboard")->first_node("entry")->first_node("name");
-	//string rootnode_type = cur_node->first_attribute("type")->value();
-
-	std::vector<std::string> result;
-
-	// MAKE SURE TO DELETE THE FILE IMMEDIATELY AFTER YOURE DONE
-
-	switch (leaderboardDataType) {
-	case LEADERBOARD_NAME:
-		for (
-			rapidxml::xml_node<>* entry_node = leaderboard_node->first_node("entry"); entry_node; entry_node = entry_node->next_sibling()
-			)
-		{
-			result.push_back(entry_node->first_node("name")->value());
-		}
-		break;
-	case LEADERBOARD_SCORE:
-		for (
-			rapidxml::xml_node<>* entry_node = leaderboard_node->first_node("entry"); entry_node; entry_node = entry_node->next_sibling()
-			)
-		{
-			result.push_back(entry_node->first_node("score")->value());
-		}
-		break;
-	case LEADERBOARD_COMMENT:
-		for (
-			rapidxml::xml_node<>* entry_node = leaderboard_node->first_node("entry"); entry_node; entry_node = entry_node->next_sibling()
-			)
-		{
-			result.push_back(entry_node->first_node("text")->value());
-		}
-		break;
-	}
-
-	std::remove("score.xml");
-
-	return script->CreateStringArrayValue(result);
-
 }
 
 //STG制御共通関数：共通データ
