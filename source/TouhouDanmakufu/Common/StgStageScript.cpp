@@ -912,7 +912,7 @@ gstd::value StgStageScript::Func_GetLeaderboardData(gstd::script_machine* machin
 
 	// valid: "LEADERBOARD_NAME", "LEADERBOARD_SCORE", "LEADERBOARD_COMMENT"
 
-	char host[] = "http://dreamlo.com/lb/";
+	char host[] = "http://dreamlo.com/";
 
 	// this is so terrible. im killing myself
 
@@ -926,7 +926,7 @@ gstd::value StgStageScript::Func_GetLeaderboardData(gstd::script_machine* machin
 
 	sf::Http::Request request;
 
-	std::string leaderboardRequestUri = "/" + leaderboardID + "/xml";
+	std::string leaderboardRequestUri = "/lb/" + leaderboardID + "/xml";
 
 	request.setMethod(sf::Http::Request::Get);
 	request.setUri(leaderboardRequestUri); // leaderboardID
@@ -939,22 +939,29 @@ gstd::value StgStageScript::Func_GetLeaderboardData(gstd::script_machine* machin
 	out << responseData;
 	out.close();
 
-	rapidxml::file<> xmlFile("score.xml"); // fuck
+	std::vector<char> xml_copy(responseData.begin(), responseData.end());
+	xml_copy.push_back('\0');
+
 	rapidxml::xml_document<> doc;
-	doc.parse<0>(xmlFile.data());
+
+	rapidxml::file<char> xmlFile("score.xml");
+	//doc.parse<0>(xmlFile.data());
+
+	doc.parse<rapidxml::parse_no_data_nodes>(&xml_copy[0]);
+
+	rapidxml::xml_node<>* root_node = doc.first_node("dreamlo");
+	rapidxml::xml_node<>* leaderboard_node = root_node->first_node("leaderboard");
+	//rapidxml::xml_node<>* cur_node = root_node->first_node("leaderboard")->first_node("entry")->first_node("name");
+	//string rootnode_type = cur_node->first_attribute("type")->value();
 
 	std::vector<std::string> result;
 
 	// MAKE SURE TO DELETE THE FILE IMMEDIATELY AFTER YOURE DONE
 
-	// Find our root node
-	rapidxml::xml_node<>* root_node;
-	root_node = doc.first_node("dreamlo");
-
 	switch (leaderboardDataType) {
 	case LEADERBOARD_NAME:
 		for (
-			rapidxml::xml_node<>* entry_node = root_node->first_node("leaderboard")->next_sibling("entry"); entry_node; entry_node = entry_node->next_sibling()
+			rapidxml::xml_node<>* entry_node = leaderboard_node->first_node("entry"); entry_node; entry_node = entry_node->next_sibling()
 			)
 		{
 			result.push_back(entry_node->first_node("name")->value());
@@ -962,7 +969,7 @@ gstd::value StgStageScript::Func_GetLeaderboardData(gstd::script_machine* machin
 		break;
 	case LEADERBOARD_SCORE:
 		for (
-			rapidxml::xml_node<>* entry_node = root_node->first_node("leaderboard")->next_sibling("entry"); entry_node; entry_node = entry_node->next_sibling()
+			rapidxml::xml_node<>* entry_node = leaderboard_node->first_node("entry"); entry_node; entry_node = entry_node->next_sibling()
 			)
 		{
 			result.push_back(entry_node->first_node("score")->value());
@@ -970,7 +977,7 @@ gstd::value StgStageScript::Func_GetLeaderboardData(gstd::script_machine* machin
 		break;
 	case LEADERBOARD_COMMENT:
 		for (
-			rapidxml::xml_node<>* entry_node = root_node->first_node("leaderboard")->next_sibling("entry"); entry_node; entry_node = entry_node->next_sibling()
+			rapidxml::xml_node<>* entry_node = leaderboard_node->first_node("entry"); entry_node; entry_node = entry_node->next_sibling()
 			)
 		{
 			result.push_back(entry_node->first_node("text")->value());
