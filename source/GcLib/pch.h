@@ -104,7 +104,10 @@
 
 #include <cwchar>
 #include <exception>
-#include <cassert>
+
+#include <cstdlib>      
+#include <cassert>    
+#include <new>   
 
 #include <cmath>
 #include <cctype>
@@ -129,11 +132,9 @@
 
 #include <fstream>
 #include <sstream>
-
 #include <regex>
-
 #include <iostream>
-#include <new>
+
 
 //-------------------------------External stuffs--------------------------------
 
@@ -161,6 +162,7 @@
 
 	#include <sfml/Network.hpp>
 	#pragma comment(lib, "sfml-network-s.lib")
+	//#pragma comment(lib, "sfml-network-s-d.lib")
 	#pragma comment(lib, "ws2_32.lib")
 
 #endif
