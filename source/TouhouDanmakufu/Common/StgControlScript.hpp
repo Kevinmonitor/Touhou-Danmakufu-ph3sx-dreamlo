@@ -38,6 +38,12 @@ class StgControlScript : public DnhScript {
 	friend StgControlScriptManager;
 public:
 	enum {
+
+		// Replay
+		LEADERBOARD_NAME,
+		LEADERBOARD_SCORE,
+		LEADERBOARD_COMMENT,
+
 		EV_USER_COUNT = 100000,
 		EV_USER = 1000000,
 		EV_USER_SYSTEM = 2000000,
@@ -85,6 +91,12 @@ protected:
 	std::map<std::wstring, ref_count_ptr<ScriptInformation>> mapScriptInfo_;
 public:
 	StgControlScript(StgSystemController* systemController);
+
+	// online
+
+	DNH_FUNCAPI_DECL_(Func_SaveEntryToLeaderboard);
+	DNH_FUNCAPI_DECL_(Func_HTTPGetRequest);
+	DNH_FUNCAPI_DECL_(Func_GetLeaderboardData);
 
 	//Area common data save/load
 	static gstd::value Func_SaveCommonDataAreaA1(gstd::script_machine* machine, int argc, const gstd::value* argv);
