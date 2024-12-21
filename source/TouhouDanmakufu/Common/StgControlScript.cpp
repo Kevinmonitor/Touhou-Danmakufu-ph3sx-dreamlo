@@ -9,6 +9,8 @@
 
 #include "../DnhExecutor/GcLibImpl.hpp"
 
+#define NUM_OF_CHARACTERS 256
+
 std::string statusToString(sf::Http::Response::Status status) {
 
 	switch (status) {
@@ -81,7 +83,8 @@ static const std::vector<function> stgControlFunction = {
 	{ "SaveEntryToLeaderboard", StgStageScript::Func_SaveEntryToLeaderboard, 4 },
 	{ "HTTPGetRequest", StgStageScript::Func_HTTPGetRequest, 3 },
 	// leaderboard public code -> leaderboard data type
-	{ "GetLeaderboardData", StgStageScript::Func_GetLeaderboardData, 2},
+	{ "GetLeaderboardData", StgStageScript::Func_GetLeaderboardData, 1},
+	{ "GetLeaderboardData", StgStageScript::Func_GetLeaderboardData, 2}, // redundant overload
 
 	//関数：
 	//STG制御共通関数：共通データ
@@ -324,14 +327,13 @@ gstd::value StgControlScript::Func_GetLeaderboardData(gstd::script_machine* mach
 	std::string hostString{ host };
 
 	std::string leaderboardID = StringUtility::ConvertWideToMulti(argv[0].as_string());
-	int leaderboardDataType = argv[1].as_int();
 
 	sf::Http http;
 	http.setHost(hostString);
 
 	sf::Http::Request request;
 
-	std::string leaderboardRequestUri = "/lb/" + leaderboardID + "/xml";
+	std::string leaderboardRequestUri = "/lb/" + leaderboardID + "/pipe";
 
 	request.setMethod(sf::Http::Request::Get);
 	request.setUri(leaderboardRequestUri); // leaderboardID
@@ -339,60 +341,77 @@ gstd::value StgControlScript::Func_GetLeaderboardData(gstd::script_machine* mach
 	sf::Http::Response response = http.sendRequest(request, sf::seconds(10.0));
 	std::string responseData = response.getBody();
 
-	std::cin >> responseData;
-	std::ofstream out("score.xml");
-	out << responseData;
-	out.close();
+	std::ofstream myfile;
+	myfile.open("score.txt");
+	myfile << responseData;
+;	myfile.close();
 
-	std::vector<char> xml_copy(responseData.begin(), responseData.end());
-	xml_copy.push_back('\0');
+	// pipe delimited
+	
+	std::ifstream file("score.txt");
+	std::string   line;
 
-	rapidxml::xml_document<> doc;
+	std::vector<gstd::value> data;
 
-	rapidxml::file<char> xmlFile("score.xml");
-	//doc.parse<0>(xmlFile.data());
+	while (std::getline(file, line))
+	{
 
-	doc.parse<rapidxml::parse_no_data_nodes>(&xml_copy[0]);
+		// name // score // seconds // text // date // index
+		std::stringstream linestream(line);
 
-	rapidxml::xml_node<>* root_node = doc.first_node("dreamlo");
-	rapidxml::xml_node<>* leaderboard_node = root_node->first_node("leaderboard");
-	//rapidxml::xml_node<>* cur_node = root_node->first_node("leaderboard")->first_node("entry")->first_node("name");
-	//string rootnode_type = cur_node->first_attribute("type")->value();
+		std::string data1;
+		std::string data2;
+		std::string data3;
+		std::string data4;
+		std::string data5;
+		std::string data6;
 
-	std::vector<std::string> result;
+		std::getline(linestream, data1, '|');  // read up-to the first pipe	
+		std::getline(linestream, data2, '|');  // read up-to the first pipe	
+		std::getline(linestream, data3, '|');  // read up-to the first pipe	
+		std::getline(linestream, data4, '|');  // read up-to the first pipe	
+		std::getline(linestream, data5, '|');  // read up-to the first pipe	
+		std::getline(linestream, data6);  // read up-to the first pipe	
 
-	// MAKE SURE TO DELETE THE FILE IMMEDIATELY AFTER YOURE DONE
+		std::vector<std::string> arr;
 
-	switch (leaderboardDataType) {
-	case LEADERBOARD_NAME:
-		for (
-			rapidxml::xml_node<>* entry_node = leaderboard_node->first_node("entry"); entry_node; entry_node = entry_node->next_sibling()
-			)
-		{
-			result.push_back(entry_node->first_node("name")->value());
-		}
-		break;
-	case LEADERBOARD_SCORE:
-		for (
-			rapidxml::xml_node<>* entry_node = leaderboard_node->first_node("entry"); entry_node; entry_node = entry_node->next_sibling()
-			)
-		{
-			result.push_back(entry_node->first_node("score")->value());
-		}
-		break;
-	case LEADERBOARD_COMMENT:
-		for (
-			rapidxml::xml_node<>* entry_node = leaderboard_node->first_node("entry"); entry_node; entry_node = entry_node->next_sibling()
-			)
-		{
-			result.push_back(entry_node->first_node("text")->value());
-		}
-		break;
+		arr.push_back(data1);
+		arr.push_back(data2);
+		arr.push_back(data4);
+
+		gstd::value convert = script->CreateStringArrayValue(arr);
+
+		data.push_back(convert);
+
 	}
 
-	std::remove("score.xml");
+	file.close();
+	std::remove("score.txt");
 
-	return script->CreateStringArrayValue(result);
+	//std::string header = "<?xml version=\"1.0\" encoding=\"utf-8\"?>";
+	//std::string finalResponse = header + responseData;
+
+	////std::cin >> responseData;
+	////std::ofstream out("score.xml");
+	////out << responseData;
+	////out.close();
+
+	//std::vector<char> xml_copy(finalResponse.begin(), finalResponse.end());
+	//xml_copy.push_back('\0');
+
+	//rapidxml::xml_document<> doc;
+	//doc.parse<rapidxml::parse_no_data_nodes>(&xml_copy[0]);
+
+	//rapidxml::xml_node<>* root_node = doc.first_node("dreamlo");
+	//rapidxml::xml_node<>* leaderboard_node = root_node->first_node("leaderboard");
+	////rapidxml::xml_node<>* cur_node = root_node->first_node("leaderboard")->first_node("entry")->first_node("name");
+	////string rootnode_type = cur_node->first_attribute("type")->value();
+
+	//// MAKE SURE TO DELETE THE FILE IMMEDIATELY AFTER YOURE DONE
+
+	//std::remove("score.xml");
+
+	return script->CreateValueArrayValue(data);
 
 }
 
