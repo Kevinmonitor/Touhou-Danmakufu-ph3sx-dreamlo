@@ -116,7 +116,8 @@ namespace directx {
 		bool _CreateRenderTarget_Unmanaged(shared_ptr<TextureData>& dst, const std::wstring& name, 
 			size_t width, size_t height)
 		{
-			return _CreateRenderTarget(dst, name, width, height, false);
+			// fuck
+			return _CreateRenderTarget(dst, name, width, height, true);
 		}
 	public:
 		TextureManager();
