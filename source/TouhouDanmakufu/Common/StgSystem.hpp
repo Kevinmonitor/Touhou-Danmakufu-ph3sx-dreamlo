@@ -42,8 +42,6 @@ protected:
 	virtual void DoEnd() = 0;
 	virtual void DoRetry() = 0;
 	void _ControlScene();
-
-	void _ResetSystem();
 public:
 	StgSystemController();
 	~StgSystemController();

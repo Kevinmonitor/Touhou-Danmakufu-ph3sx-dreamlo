@@ -15,12 +15,7 @@ class EApplication : public Singleton<EApplication>, public Application {
 	friend Singleton<EApplication>;
 protected:
 	EDirectGraphics* ptrGraphics;
-
 	bool bWindowFocused_;
-
-	shared_ptr<Texture> secondaryBackBuffer_;
-protected:
-	void _RenderDisplay();
 public:
 	EApplication();
 	~EApplication();
@@ -28,12 +23,9 @@ public:
 	bool _Initialize();
 	bool _Loop();
 	bool _Finalize();
-public:
+
 	EDirectGraphics* GetPtrGraphics() { return ptrGraphics; }
-
 	bool IsWindowFocused() { return bWindowFocused_; }
-
-	void SetSecondaryBackBuffer(shared_ptr<Texture> texture) { secondaryBackBuffer_ = texture; }
 };
 
 //*******************************************************************

@@ -1202,17 +1202,7 @@ void StgItemObject_User::Render(BlendMode targetBlend) {
 				DirectGraphics* graphics = DirectGraphics::GetBase();
 				IDirect3DDevice9* device = graphics->GetDevice();
 
-				if (graphics->IsAllowRenderTargetChange()) {
-					if (auto pRT = renderTarget_.lock())
-						graphics->SetRenderTarget(pRT);
-					else graphics->SetRenderTarget(nullptr);
-				}
-
-				IDirect3DTexture9* pTexture = pVB->GetD3DTexture();
-				if (pTexture != itemManager->pLastTexture_) {
-					device->SetTexture(0, pTexture);
-					itemManager->pLastTexture_ = pTexture;
-				}
+				device->SetTexture(0, pVB->GetD3DTexture());
 				device->SetStreamSource(0, pVB->GetD3DBuffer(), vertexOffset * sizeof(VERTEX_TLX), sizeof(VERTEX_TLX));
 
 				{

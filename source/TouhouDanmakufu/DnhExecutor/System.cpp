@@ -107,8 +107,7 @@ void SceneManager::TransScriptSelectScene(int type) {
 		type == ScriptSelectScene::TYPE_STAGE ||
 		type == ScriptSelectScene::TYPE_PACKAGE ||
 		type == ScriptSelectScene::TYPE_DIR ||
-		type == ScriptSelectScene::TYPE_ALL)
-	{
+		type == ScriptSelectScene::TYPE_ALL) {
 		std::wstring dir = EPathProperty::GetStgScriptRootDirectory();
 		SystemInformation* systemInfo = SystemController::GetInstance()->GetSystemInformation();
 		if (type == ScriptSelectScene::TYPE_DIR) {
@@ -310,15 +309,12 @@ void TransitionManager::_CreateCurrentSceneTexture() {
 	TextureManager* textureManager = ETextureManager::GetInstance();
 	shared_ptr<Texture> texture = textureManager->GetTexture(TextureManager::TARGET_TRANSITION);
 
-	graphics->SetRenderTarget(texture);
-	graphics->ResetDeviceState();
-
+	graphics->SetRenderTarget(texture, false);
 	//graphics->ClearRenderTarget();
 	graphics->BeginScene(false, true);
 	taskManager->CallRenderFunction();
 	graphics->EndScene(false);
-
-	graphics->SetRenderTarget(nullptr);
+	graphics->SetRenderTarget(nullptr, false);
 }
 void TransitionManager::_AddTask(ref_count_ptr<TransitionEffect> effect) {
 	WorkRenderTaskManager* taskManager = ETaskManager::GetInstance();

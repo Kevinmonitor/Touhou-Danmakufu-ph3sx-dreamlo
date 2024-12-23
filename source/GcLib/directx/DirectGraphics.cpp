@@ -48,143 +48,8 @@ DirectGraphicsBase::DirectGraphicsBase() {
 	ZeroMemory(&deviceCaps_, sizeof(deviceCaps_));
 	deviceStatus_ = S_OK;
 
-	hAttachedWindow_ = nullptr;
-}
-DirectGraphicsBase::~DirectGraphicsBase() {
-	Release();
-}
-
-void DirectGraphicsBase::_ReleaseDxResource() {
-	ptr_release(pZBuffer_);
-	ptr_release(pBackSurf_);
-
-	for (auto itr = listListener_.begin(); itr != listListener_.end(); ++itr) {
-		(*itr)->ReleaseDxResource();
-	}
-}
-void DirectGraphicsBase::_RestoreDxResource() {
-	pDevice_->GetRenderTarget(0, &pBackSurf_);
-	pDevice_->GetDepthStencilSurface(&pZBuffer_);
-
-	for (auto itr = listListener_.begin(); itr != listListener_.end(); ++itr) {
-		(*itr)->RestoreDxResource();
-	}
-}
-
-void DirectGraphicsBase::_VerifyDeviceCaps() {
-	std::vector<std::string> listError;
-	std::vector<std::string> listWarning;
-
-	if ((deviceCaps_.PresentationIntervals & D3DPRESENT_INTERVAL_IMMEDIATE) == 0)
-		listError.push_back("D3DPRESENT_INTERVAL_IMMEDIATE is unavailable");
-	if ((deviceCaps_.PresentationIntervals & D3DPRESENT_INTERVAL_ONE) == 0)
-		listWarning.push_back("V-Sync is unavailable");
-
-	if (deviceCaps_.VertexShaderVersion < D3DVS_VERSION(2, 0)
-		|| deviceCaps_.MaxVertexShaderConst < 4)
-		listError.push_back("The device's vertex shader support is insufficient (vs_2_0 required)");
-	else if (deviceCaps_.VertexShaderVersion < D3DVS_VERSION(3, 0))
-		listWarning.push_back("The device's vertex shader support is insufficient (vs_3_0 recommended)");
-
-	if (deviceCaps_.NumSimultaneousRTs < 1)
-		listError.push_back("Device must support at least 1 render target");
-
-	//-------------------------------------------------------------------------------
-
-	_VerifyDeviceCaps_Result(listError, listWarning);
-}
-void DirectGraphicsBase::_VerifyDeviceCaps_Result(const std::vector<std::string>& err, const std::vector<std::string>& warn) {
-	if (err.size() > 0) {
-		std::string strAll = "The game cannot start as the\r\n"
-			"Direct3D device has the following issue(s):\r\n";
-		for (auto& str : err)
-			strAll += "   - " + str + "\r\n";
-		strAll += "Try restarting in reference rasterizer mode\r\n";
-		throw wexception(strAll);
-	}
-	else if (warn.size() > 0) {
-		std::string strAll = "The game's rendering might behave strangely as the\r\n"
-			"Direct3D device has the following issue(s):\r\n";
-		for (auto& str : warn)
-			strAll += "   - " + str + "\r\n";
-		Logger::WriteTop(strAll);
-	}
-}
-
-std::vector<std::wstring> DirectGraphicsBase::_GetRequiredModules() {
-	return std::vector<std::wstring>({
-		L"d3d9.dll", L"d3dx9_43.dll", L"d3dcompiler_43.dll",
-		L"dsound.dll", L"dinput8.dll"
-	});
-}
-void DirectGraphicsBase::_LoadModules() {
-	HANDLE hCurrentProcess = ::GetCurrentProcess();
-
-	std::vector<std::wstring> moduleNames = _GetRequiredModules();
-	for (auto& iModule : moduleNames) {
-		HMODULE hModule = ::LoadLibraryW(iModule.c_str());
-		if (hModule == nullptr)
-			throw gstd::wexception(L"Failed to load module: " + iModule);
-		mapDxModules_[iModule] = hModule;
-	}
-}
-void DirectGraphicsBase::_FreeModules() {
-	for (auto itr = mapDxModules_.begin(); itr != mapDxModules_.end(); ++itr) {
-		HMODULE pModule = itr->second;
-		if (pModule)
-			::FreeLibrary(pModule);
-	}
-	mapDxModules_.clear();
-}
-
-void DirectGraphicsBase::Release() {
-	ptr_release(pZBuffer_);
-	ptr_release(pBackSurf_);
-	ptr_release(pDevice_);
-	ptr_release(pDirect3D_);
-
-	_FreeModules();
-}
-
-void DirectGraphicsBase::AddDirectGraphicsListener(DirectGraphicsListener* listener) {
-	for (auto itr = listListener_.begin(); itr != listListener_.end(); ++itr) {
-		if ((*itr) == listener)
-			return;
-	}
-	listListener_.push_back(listener);
-}
-void DirectGraphicsBase::RemoveDirectGraphicsListener(DirectGraphicsListener* listener) {
-	listListener_.remove(listener);
-}
-
-bool DirectGraphicsBase::BeginScene(bool bClear = true) {
-	return SUCCEEDED(pDevice_->BeginScene());
-}
-void DirectGraphicsBase::EndScene(bool bPresent = true) {
-	pDevice_->EndScene();
-
-	if (bPresent) {
-		deviceStatus_ = pDevice_->Present(nullptr, nullptr, nullptr, nullptr);
-		if (FAILED(deviceStatus_)) {
-			if (_Restore()) {
-				ResetDeviceState();
-			}
-		}
-	}
-}
-
-#if defined(DNH_PROJ_EXECUTOR)
-//*******************************************************************
-//DirectGraphics
-//*******************************************************************
-DirectGraphics* DirectGraphics::thisBase_ = nullptr;
-float DirectGraphics::g_dxCoordsMul_ = 1.0f;
-DirectGraphics::DirectGraphics() {
 	camera_ = new DxCamera();
 	camera2D_ = new DxCamera2D();
-
-	ZeroMemory(&viewPort_, sizeof(D3DVIEWPORT9));
-	D3DXMatrixIdentity(&matViewPort_);
 
 	defaultRenderTargetSize_[0] = 1024;
 	defaultRenderTargetSize_[1] = 512;
@@ -196,15 +61,57 @@ DirectGraphics::DirectGraphics() {
 	bufferManager_ = nullptr;
 
 	bMainRender_ = true;
-	bAllowRenderTargetChange_ = true;
 	previousBlendMode_ = BlendMode::RESET;
+	D3DXMatrixIdentity(&matViewPort_);
 }
 DirectGraphics::~DirectGraphics() {
 	Logger::WriteTop("DirectGraphics: Finalizing.");
 
-	Release();
+	ptr_release(pZBuffer_);
+	ptr_release(pBackSurf_);
+	ptr_release(pDevice_);
+	ptr_release(pDirect3D_);
+	ptr_delete(bufferManager_);
 
+	for (auto& itrSample : mapSupportMultisamples_) {
+		delete itrSample.second.second;
+	}
+
+	_FreeModules();
+
+	thisBase_ = nullptr;
 	Logger::WriteTop("DirectGraphics: Finalized.");
+}
+
+void DirectGraphics::_LoadModules() {
+	HANDLE hCurrentProcess = ::GetCurrentProcess();
+
+	auto _LoadModule = [](const std::wstring& name, HMODULE* hDest, bool bThrowErr = true) -> bool {
+		*hDest = ::LoadLibraryW(name.c_str());
+		if (*hDest == nullptr && bThrowErr)
+			throw gstd::wexception(L"Failed to load module: " + name);
+		return *hDest != nullptr;
+	};
+
+	_LoadModule(L"d3d9.dll", &dxModules_.hLibrary_d3d9);
+	_LoadModule(L"d3dx9_43.dll", &dxModules_.hLibrary_d3dx9);
+	_LoadModule(L"d3dcompiler_43.dll", &dxModules_.hLibrary_d3dcompiler);
+	_LoadModule(L"dsound.dll", &dxModules_.hLibrary_dsound);
+	_LoadModule(L"dinput8.dll", &dxModules_.hLibrary_dinput8);
+}
+void DirectGraphics::_FreeModules() {
+	auto _Free = [](HMODULE* pModule) {
+		if (*pModule) {
+			::FreeLibrary(*pModule);
+			*pModule = nullptr;
+		}
+	};
+
+	_Free(&dxModules_.hLibrary_d3d9);
+	_Free(&dxModules_.hLibrary_d3dx9);
+	_Free(&dxModules_.hLibrary_d3dcompiler);
+	_Free(&dxModules_.hLibrary_dinput8);
+	_Free(&dxModules_.hLibrary_dsound);
 }
 
 bool DirectGraphics::Initialize(HWND hWnd) {
@@ -390,9 +297,9 @@ bool DirectGraphics::Initialize(HWND hWnd, const DirectGraphicsConfig& config) {
 
 	thisBase_ = this;
 
-	ResetCamera();
-	ResetDeviceState();
-	ResetDisplaySettings();
+	if (camera2D_)
+		camera2D_->Reset();
+	_InitializeDeviceState(true);
 
 	BeginScene(true, true);
 	EndScene(true);
@@ -530,10 +437,14 @@ void DirectGraphics::_VerifyDeviceCaps() {
 }
 
 void DirectGraphics::_RestoreDxResource() {
-	DirectGraphicsBase::_RestoreDxResource();
+	pDevice_->GetRenderTarget(0, &pBackSurf_);
+	pDevice_->GetDepthStencilSurface(&pZBuffer_);
 
-	ResetCamera();
-	ResetDeviceState();
+	for (auto itr = listListener_.begin(); itr != listListener_.end(); ++itr) {
+		(*itr)->RestoreDxResource();
+	}
+
+	_InitializeDeviceState(true);
 }
 
 static int g_restoreFailCount = 0;
@@ -580,34 +491,28 @@ bool DirectGraphics::_Restore() {
 		return false;
 	}
 }
-void DirectGraphics::ResetCamera() {
-	if (camera_) {
-		camera_->Reset();
-		camera_->SetWorldViewMatrix();
-		camera_->SetProjectionMatrix();
-		camera_->UpdateDeviceViewProjectionMatrix();
+void DirectGraphics::_InitializeDeviceState(bool bResetCamera) {
+	if (bResetCamera) {
+		if (camera_) {
+			camera_->SetWorldViewMatrix();
+			camera_->SetProjectionMatrix();
+			camera_->UpdateDeviceViewProjectionMatrix();
+		}
+		else {
+			D3DXMATRIX viewMat;
+			D3DXMATRIX persMat;
+
+			D3DVECTOR viewFrom = D3DXVECTOR3(100, 300, -500);
+			D3DXMatrixLookAtLH(&viewMat, (D3DXVECTOR3*)&viewFrom, &D3DXVECTOR3(0, 0, 0), &D3DXVECTOR3(0, 1, 0));
+
+			D3DXMatrixPerspectiveFovLH(&persMat, D3DXToRadian(45.0),
+				GetRenderScreenWidth() / (float)GetRenderScreenHeight(), 10.0f, 2000.0f);
+
+			viewMat = viewMat * persMat;
+
+			pDevice_->SetTransform(D3DTS_VIEW, &viewMat);
+		}
 	}
-	else {
-		D3DXMATRIX viewMat;
-		D3DXMATRIX persMat;
-
-		D3DVECTOR viewFrom = D3DXVECTOR3(100, 300, -500);
-		D3DXMatrixLookAtLH(&viewMat, (D3DXVECTOR3*)&viewFrom, &D3DXVECTOR3(0, 0, 0), &D3DXVECTOR3(0, 1, 0));
-
-		D3DXMatrixPerspectiveFovLH(&persMat, D3DXToRadian(45.0),
-			GetScreenWidth() / (float)GetScreenHeight(), 10.0f, 2000.0f);
-
-		viewMat = viewMat * persMat;
-
-		pDevice_->SetTransform(D3DTS_VIEW, &viewMat);
-	}
-
-	if (camera2D_) {
-		camera2D_->ResetAll();
-	}
-}
-void DirectGraphics::ResetDeviceState() {
-	pDevice_->SetRenderState(D3DRS_MULTISAMPLEANTIALIAS, false);
 
 	SetCullingMode(D3DCULL_NONE);
 	pDevice_->SetRenderState(D3DRS_SHADEMODE, D3DSHADE_GOURAUD);
@@ -632,22 +537,25 @@ void DirectGraphics::ResetDeviceState() {
 
 	SetTextureFilter(D3DTEXF_LINEAR, D3DTEXF_LINEAR, D3DTEXF_NONE);
 
-	SetVertexFog(false, 0, 0, 0);
-
 	UpdateDefaultRenderTargetSize();
 	ResetViewPort();
 }
-void DirectGraphics::ResetDisplaySettings() {
-	D3DXMatrixIdentity(&displaySettingsWindowed_.matDisplay);
-	D3DXMatrixIdentity(&displaySettingsFullscreen_.matDisplay);
-	displaySettingsWindowed_.shader = nullptr;
-	displaySettingsFullscreen_.shader = nullptr;
+void DirectGraphics::AddDirectGraphicsListener(DirectGraphicsListener* listener) {
+	std::list<DirectGraphicsListener*>::iterator itr;
+	for (itr = listListener_.begin(); itr != listListener_.end(); ++itr) {
+		if ((*itr) == listener) return;
+	}
+	listListener_.push_back(listener);
 }
-
-bool DirectGraphics::BeginScene(bool bClear) {
-	return BeginScene(true, bClear);
+void DirectGraphics::RemoveDirectGraphicsListener(DirectGraphicsListener* listener) {
+	std::list<DirectGraphicsListener*>::iterator itr;
+	for (itr = listListener_.begin(); itr != listListener_.end(); ++itr) {
+		if ((*itr) != listener) continue;
+		listListener_.erase(itr);
+		break;
+	}
 }
-bool DirectGraphics::BeginScene(bool bMainRender, bool bClear) {
+void DirectGraphics::BeginScene(bool bMainRender, bool bClear) {
 	if (bClear) ClearRenderTarget();
 	bMainRender_ = bMainRender;
 
@@ -663,38 +571,52 @@ bool DirectGraphics::BeginScene(bool bMainRender, bool bClear) {
 
 	return SUCCEEDED(pDevice_->BeginScene());
 }
+void DirectGraphics::EndScene(bool bPresent) {
+	pDevice_->EndScene();
 
+	if (bPresent) {
+		deviceStatus_ = pDevice_->Present(nullptr, nullptr, nullptr, nullptr);
+		if (FAILED(deviceStatus_)) {
+			if (_Restore()) _InitializeDeviceState(true);
+		}
+	}
+}
 void DirectGraphics::ClearRenderTarget() {
+	/*
+	if (textureTarget_ == nullptr) {
+		pDevice_->Clear(0, nullptr, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0, 0);
+	}
+	else {
+		pDevice_->Clear(0, nullptr, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0, 0);
+	}
+	*/
 	pDevice_->Clear(0, nullptr, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER,
-		currentRenderTarget_ != nullptr ? D3DCOLOR_ARGB(0, 0, 0, 0) : D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
+		textureTarget_  != nullptr ? D3DCOLOR_ARGB(0, 0, 0, 0) : D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
 }
 void DirectGraphics::ClearRenderTarget(DxRect<LONG>* rect) {
-	RECT rc = rect->AsRect();
-	pDevice_->Clear(1, (D3DRECT*)&rc, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER,
-		currentRenderTarget_ != nullptr ? D3DCOLOR_ARGB(0, 0, 0, 0) : D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
+	//D3DRECT rcDest = { rect.left, rect.top, rect.right, rect.bottom };
+	/*
+	if (textureTarget_ == nullptr) {
+		pDevice_->Clear(1, (D3DRECT*)rect, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0, 0, 0), 1.0, 0);
+	}
+	else {
+		pDevice_->Clear(1, (D3DRECT*)rect, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0, 0);
+	}
+	*/
+	pDevice_->Clear(1, (D3DRECT*)rect, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, 
+		textureTarget_ != nullptr ? D3DCOLOR_ARGB(0, 0, 0, 0) : D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
 }
-void DirectGraphics::SetRenderTarget(shared_ptr<Texture> texture) {
-	if (currentRenderTarget_ == texture) return;
-	currentRenderTarget_ = texture;
+void DirectGraphics::SetRenderTarget(shared_ptr<Texture> texture, bool bResetCameraState) {
+	textureTarget_ = texture;
 	if (texture == nullptr) {
-		if (defaultBackBufferRenderTarget_) {
-			pDevice_->SetRenderTarget(0, defaultBackBufferRenderTarget_->GetD3DSurface());
-			pDevice_->SetDepthStencilSurface(defaultBackBufferRenderTarget_->GetD3DZBuffer());
-		}
-		else {
-			SetRenderTargetNull();
-		}
+		pDevice_->SetRenderTarget(0, pBackSurf_);
+		pDevice_->SetDepthStencilSurface(pZBuffer_);
 	}
 	else {
 		pDevice_->SetRenderTarget(0, texture->GetD3DSurface());
 		pDevice_->SetDepthStencilSurface(texture->GetD3DZBuffer());
 	}
-	//because SetRenderTarget also sets the viewport to the render target's size for some fucking reason
-	pDevice_->SetViewport(&viewPort_);
-}
-void DirectGraphics::SetRenderTargetNull() {
-	pDevice_->SetRenderTarget(0, pBackSurf_);
-	pDevice_->SetDepthStencilSurface(pZBuffer_);
+	_InitializeDeviceState(bResetCameraState);
 }
 void DirectGraphics::SetLightingEnable(bool bEnable) {
 	pDevice_->SetRenderState(D3DRS_LIGHTING, bEnable);
@@ -879,32 +801,23 @@ bool DirectGraphics::IsSupportMultiSample(D3DMULTISAMPLE_TYPE type, bool bWindow
 	if (itr == mapSupportMultisamples_.end()) return false;
 	return itr->second[bWindowed ? 0 : 1];
 }
-
-D3DXMATRIX DirectGraphics::CreateOrthographicProjectionMatrix(float x, float y, float width, float height) {
-	float l = x, t = y;
-	float r = l + width, b = t + height;
-
-	D3DXMATRIX mat;
-	D3DXMatrixIdentity(&mat);
-
-	mat._11 = 2.0f / (r - l);
-	mat._22 = 2.0f / (t - b);
-	mat._41 = (l + r) / (l - r);
-	mat._42 = (t + b) / (b - t);
-
-	return mat;
-}
 void DirectGraphics::SetViewPort(int x, int y, int width, int height) {
-	ZeroMemory(&viewPort_, sizeof(D3DVIEWPORT9));
-	viewPort_.X = x;
-	viewPort_.Y = y;
-	viewPort_.Width = width;
-	viewPort_.Height = height;
-	viewPort_.MinZ = 0.0f;
-	viewPort_.MaxZ = 1.0f;
-	pDevice_->SetViewport(&viewPort_);
+	D3DVIEWPORT9 viewPort;
+	ZeroMemory(&viewPort, sizeof(D3DVIEWPORT9));
+	viewPort.X = x;
+	viewPort.Y = y;
+	viewPort.Width = width;
+	viewPort.Height = height;
+	viewPort.MinZ = 0.0f;
+	viewPort.MaxZ = 1.0f;
+	pDevice_->SetViewport(&viewPort);
 
-	matViewPort_ = CreateOrthographicProjectionMatrix(x, y, width, height);
+	{
+		matViewPort_._11 = 2.0f / width;
+		matViewPort_._22 = -2.0f / height;
+		matViewPort_._41 = -(float)(width + x * 2.0f) / width;
+		matViewPort_._42 = (float)(height + y * 2.0f) / height;
+	}
 }
 void DirectGraphics::ResetViewPort() {
 	SetViewPort(0, 0, GetScreenWidth(), GetScreenHeight());
@@ -917,6 +830,13 @@ double DirectGraphics::GetScreenWidthRatio() {
 	double widthWindow = rect.right - rect.left;
 	double widthView = GetRenderScreenWidth();
 
+	/*
+	DWORD style = ::GetWindowLong(hAttachedWindow_, GWL_STYLE);
+	if (modeScreen_ == SCREENMODE_WINDOW && (style & (WS_OVERLAPPEDWINDOW - WS_SIZEBOX)) > 0) {
+		widthWindow -= GetSystemMetrics(SM_CXEDGE) + GetSystemMetrics(SM_CXBORDER) + GetSystemMetrics(SM_CXDLGFRAME);
+	}
+	*/
+
 	return widthWindow / widthView;
 }
 double DirectGraphics::GetScreenHeightRatio() {
@@ -925,6 +845,14 @@ double DirectGraphics::GetScreenHeightRatio() {
 
 	double heightWindow = rect.bottom - rect.top;
 	double heightView = GetRenderScreenHeight();
+
+	/*
+	DWORD style = ::GetWindowLong(hAttachedWindow_, GWL_STYLE);
+	if (modeScreen_ == SCREENMODE_WINDOW && (style & (WS_OVERLAPPEDWINDOW - WS_SIZEBOX)) > 0) {
+		heightWindow -= GetSystemMetrics(SM_CYEDGE) + GetSystemMetrics(SM_CYBORDER) + 
+			GetSystemMetrics(SM_CYDLGFRAME) + GetSystemMetrics(SM_CYCAPTION);
+	}
+	*/
 
 	return heightWindow / heightView;
 }
@@ -971,12 +899,16 @@ void DirectGraphics::UpdateDefaultRenderTargetSize() {
 		baseW = config_.sizeScreenDisplay_.x;
 		baseH = config_.sizeScreenDisplay_.y;
 	}
-	*/
-	baseW = GetScreenWidth();
-	baseH = GetScreenHeight();
 
-	defaultRenderTargetSize_[0] = Math::GetNextPow2(baseW);
-	defaultRenderTargetSize_[1] = Math::GetNextPow2(baseH);
+	size_t width = 1U;
+	while (width <= baseW)
+		width = width << 1;
+	size_t height = 1U;
+	while (height <= baseH)
+		height = height << 1;
+
+	defaultRenderTargetSize_[0] = width;
+	defaultRenderTargetSize_[1] = height;
 }
 
 //*******************************************************************
@@ -1038,9 +970,7 @@ bool DirectGraphicsPrimaryWindow::Initialize(DirectGraphicsConfig& config) {
 		hWndParent_ = hWnd_;
 	}
 
-	/*
 	if (config.bBorderlessFullscreen_) {
-	//{
 		//Create a child window to handle contents (parent window handles black bars)
 
 		WNDCLASSEX wcex;
@@ -1070,10 +1000,6 @@ bool DirectGraphicsPrimaryWindow::Initialize(DirectGraphicsConfig& config) {
 			::ShowWindow(hWnd_, SW_SHOW);
 		hWndContent_ = hWnd_;
 	}
-	*/
-	if (config.bShowWindow)
-		::ShowWindow(hWnd_, SW_SHOW);
-	hWndContent_ = hWnd_;
 
 	::UpdateWindow(hWnd_);
 	this->Attach(hWnd_);
@@ -1397,7 +1323,6 @@ void DxCamera::Reset() {
 	D3DXMatrixIdentity(&matViewInverse_);
 	D3DXMatrixIdentity(&matViewTranspose_);
 	D3DXMatrixIdentity(&matProjectionInverse_);
-
 	D3DXMatrixIdentity(&matIdentity_);
 
 	thisViewChanged_ = true;
