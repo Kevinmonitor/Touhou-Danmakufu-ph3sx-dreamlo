@@ -43,10 +43,9 @@ namespace directx {
 
 		DirectionalLightingState lightParameter_;
 
-		size_t strideVertexStreamZero_;			//byte size per vertex data
-		std::vector<byte> vertex_;				//vertex data
-		std::vector<uint16_t> vertexIndices_;	//Index data
 		shared_ptr<Texture> texture_;
+		weak_ptr<Texture> renderTarget_;
+
 		D3DXVECTOR3 posWeightCenter_;
 
 		D3DXVECTOR3 position_;
@@ -69,13 +68,12 @@ namespace directx {
 
 		virtual void CalculateWeightCenter() {}
 		D3DXVECTOR3 GetWeightCenter() { return posWeightCenter_; }
+
+		void SetTexture(shared_ptr<Texture> texture) { texture_ = texture; }
 		shared_ptr<Texture> GetTexture() { return texture_; }
+		void SetRenderTarget(shared_ptr<Texture> texture) { renderTarget_ = texture; }
 
-		size_t _GetPrimitiveCount();
-		size_t _GetPrimitiveCount(size_t count) { return  _GetPrimitiveCount(typePrimitive_, count); }
-		static size_t _GetPrimitiveCount(D3DPRIMITIVETYPE typePrim, size_t count);
-
-		void SetRalativeMatrix(shared_ptr<D3DXMATRIX>& mat) { matRelative_ = mat; }
+		void SetRelativeMatrix(shared_ptr<D3DXMATRIX>& mat) { matRelative_ = mat; }
 
 		static D3DXMATRIX CreateWorldMatrix(const D3DXVECTOR3& position, const D3DXVECTOR3& scale,
 			const D3DXVECTOR2& angleX, const D3DXVECTOR2& angleY, const D3DXVECTOR2& angleZ,
@@ -105,8 +103,6 @@ namespace directx {
 
 		void SetScale(const D3DXVECTOR3& scale) { SetScaleXYZ(scale.x, scale.y, scale.z); }
 		void SetScaleXYZ(float sx = 1.0f, float sy = 1.0f, float sz = 1.0f);
-
-		void SetTexture(shared_ptr<Texture> texture) { texture_ = texture; }
 
 		bool IsCoordinate2D() { return bCoordinate2D_; }
 		void SetCoordinate2D(bool b) { bCoordinate2D_ = b; }

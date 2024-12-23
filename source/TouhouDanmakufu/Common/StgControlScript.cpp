@@ -923,16 +923,31 @@ shared_ptr<Texture> _RenderToTexture_LoadTexture(DxScriptResourceCache* rsrcCach
 		}
 	}
 
-	if (texture) {
-		DirectGraphics* graphics = DirectGraphics::GetBase();
+	return texture;
+}
+template<bool OVERRIDE_RT>
+gstd::value StgControlScript::Func_RenderToTextureA(gstd::script_machine* machine, int argc, const gstd::value* argv) {
+	StgControlScript* script = (StgControlScript*)machine->data;
+	DirectGraphics* graphics = DirectGraphics::GetBase();
 
-		graphics->SetRenderTarget(texture, false);
+	std::wstring name = argv[0].as_string();
+	int priMin = argv[1].as_int();
+	int priMax = argv[2].as_int();
+	bool bClear = argv[3].as_boolean();
+
+	shared_ptr<Texture> texture = _RenderToTexture_LoadTexture(script->pResouceCache_, name);
+
+	if (texture && texture->GetType() == TextureData::Type::TYPE_RENDER_TARGET) {
+		graphics->SetAllowRenderTargetChange(OVERRIDE_RT);
+		graphics->SetRenderTarget(texture);
+		graphics->ResetDeviceState();
+
 		graphics->BeginScene(false, bClear);
-
 		script->systemController_->RenderScriptObject(priMin, priMax);
-
 		graphics->EndScene(false);
-		graphics->SetRenderTarget(nullptr, false);
+
+		graphics->SetRenderTarget(nullptr);
+		graphics->SetAllowRenderTargetChange(true);
 	}
 
 	return value();
@@ -950,16 +965,17 @@ gstd::value StgControlScript::Func_RenderToTextureB(gstd::script_machine* machin
 	if (obj) {
 		shared_ptr<Texture> texture = _RenderToTexture_LoadTexture(script->pResouceCache_, name);
 
-		if (texture) {
-			DirectGraphics* graphics = DirectGraphics::GetBase();
+		if (texture && texture->GetType() == TextureData::Type::TYPE_RENDER_TARGET) {
+			graphics->SetAllowRenderTargetChange(OVERRIDE_RT);
+			graphics->SetRenderTarget(texture);
+			graphics->ResetDeviceState();
 
-			graphics->SetRenderTarget(texture, false);
 			graphics->BeginScene(false, bClear);
-
 			obj->Render();
-
 			graphics->EndScene(false);
-			graphics->SetRenderTarget(nullptr, false);
+
+			graphics->SetRenderTarget(nullptr);
+			graphics->SetAllowRenderTargetChange(true);
 		}
 	}
 
@@ -974,16 +990,6 @@ gstd::value StgControlScript::Func_SaveSnapShotA1(gstd::script_machine* machine,
 	std::wstring path = argv[0].as_string();
 
 	DirectGraphics* graphics = DirectGraphics::GetBase();
-
-	/*
-	shared_ptr<Texture> texture = textureManager->GetTexture(TextureManager::TARGET_TRANSITION);
-
-	graphics->SetRenderTarget(texture, false);
-	graphics->BeginScene(false, true);
-	systemController->RenderScriptObject(0, 100);
-	graphics->EndScene(false);
-	graphics->SetRenderTarget(nullptr, false);
-	*/
 
 	//Create the directory (if it doesn't exist)
 	std::wstring dir = PathProperty::GetFileDirectory(path);
@@ -1005,15 +1011,6 @@ gstd::value StgControlScript::Func_SaveSnapShotA2(gstd::script_machine* machine,
 		argv[3].as_int(), argv[4].as_int());
 
 	DirectGraphics* graphics = DirectGraphics::GetBase();
-	/*
-	shared_ptr<Texture> texture = textureManager->GetTexture(TextureManager::TARGET_TRANSITION);
-
-	graphics->SetRenderTarget(texture, false);
-	graphics->BeginScene(false, true);
-	systemController->RenderScriptObject(0, 100);
-	graphics->EndScene(false);
-	graphics->SetRenderTarget(nullptr, false);
-	*/
 
 	//Create the directory (if it doesn't exist)
 	std::wstring dir = PathProperty::GetFileDirectory(path);
@@ -1040,15 +1037,6 @@ gstd::value StgControlScript::Func_SaveSnapShotA3(gstd::script_machine* machine,
 		imgFormat = D3DXIFF_PPM;
 
 	DirectGraphics* graphics = DirectGraphics::GetBase();
-	/*
-	shared_ptr<Texture> texture = textureManager->GetTexture(TextureManager::TARGET_TRANSITION);
-
-	graphics->SetRenderTarget(texture, false);
-	graphics->BeginScene(false, true);
-	systemController->RenderScriptObject(0, 100);
-	graphics->EndScene(false);
-	graphics->SetRenderTarget(nullptr, false);
-	*/
 
 	//Create the directory (if it doesn't exist)
 	std::wstring dir = PathProperty::GetFileDirectory(path);

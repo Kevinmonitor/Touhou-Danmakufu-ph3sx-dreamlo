@@ -312,6 +312,7 @@ protected:
 
 	bool bPenetrateShot_; // Translation: Does The Shot Lose Penetration Points Upon Colliding With Another Shot And Not An Enemy
 
+	weak_ptr<Texture> renderTarget_;
 private:
 	struct _WeakPtrHasher {
 		std::size_t operator()(const ref_unsync_weak_ptr<StgEnemyObject>& k) const {
@@ -341,14 +342,14 @@ public:
 	bool bEnableMotionDelay_;
 	bool bRoundingPosition_;
 	double roundingAngle_;
-
+public:
 	StgShotData* _GetShotData() { return _GetShotData(idShotData_); }
 	inline StgShotData* _GetShotData(int id);
 
 	static void _SetVertexPosition(VERTEX_TLX* vertex, float x, float y, float z = 1.0f, float w = 1.0f);
 	static void _SetVertexUV(VERTEX_TLX* vertex, float u, float v);
 	static void _SetVertexColorARGB(VERTEX_TLX* vertex, D3DCOLOR color);
-
+protected:
 	virtual void _DeleteInLife();
 	virtual void _DeleteInAutoClip();
 	virtual void _DeleteInFadeDelete();
@@ -360,9 +361,12 @@ public:
 	virtual void _SendDeleteEvent(TypeDelete type) {}
 	void _RequestPlayerDeleteEvent(int hitObjectID);
 
-	std::list<StgPatternShotTransform> listTransformationShotAct_;
+	inline void _DefaultShotRender(StgShotData* shotData, StgShotDataFrame* shotFrame, const D3DXMATRIX& matWorld, D3DCOLOR color);
+protected:
+	std::list<StgShotPatternTransform> listTransformationShotAct_;
 	int timerTransform_;
 	int timerTransformNext_;
+
 	void _ProcessTransformAct();
 public:
 	StgShotObject(StgStageController* stageController);
@@ -377,6 +381,8 @@ public:
 
 	virtual void Render() {};
 	virtual void Render(BlendMode targetBlend) = 0;
+
+	virtual void SetRenderTarget(shared_ptr<Texture> texture) { renderTarget_ = texture; }
 
 	virtual void DeleteImmediate();
 	virtual void ConvertToItem();
