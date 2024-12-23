@@ -366,17 +366,18 @@ gstd::value StgControlScript::Func_GetLeaderboardData(gstd::script_machine* mach
 		std::string data5;
 		std::string data6;
 
-		std::getline(linestream, data1, '|');  // read up-to the first pipe	
-		std::getline(linestream, data2, '|');  // read up-to the first pipe	
-		std::getline(linestream, data3, '|');  // read up-to the first pipe	
-		std::getline(linestream, data4, '|');  // read up-to the first pipe	
-		std::getline(linestream, data5, '|');  // read up-to the first pipe	
-		std::getline(linestream, data6);  // read up-to the first pipe	
+		std::getline(linestream, data1, '|');  // name
+		std::getline(linestream, data2, '|');  // score
+		std::getline(linestream, data3, '|');  // seconds (used for clear/fail state)
+		std::getline(linestream, data4, '|');  // comment (player name)
+		std::getline(linestream, data5, '|');  // date
+		std::getline(linestream, data6);  // ranking
 
 		std::vector<std::string> arr;
 
 		arr.push_back(data1);
 		arr.push_back(data2);
+		arr.push_back(data3);
 		arr.push_back(data4);
 
 		gstd::value convert = script->CreateStringArrayValue(arr);

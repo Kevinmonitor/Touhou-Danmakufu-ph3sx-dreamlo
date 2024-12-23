@@ -158,7 +158,7 @@
 
 //sfml
 
-#if defined(DNH_PROJ_EXECUTOR)
+#if defined(DNH_PROJ_EXECUTOR) || defined(DNH_PROJ_FILEARCHIVER)
 
 	#include <sfml/Network.hpp>
 	#pragma comment(lib, "sfml-network-s.lib")
