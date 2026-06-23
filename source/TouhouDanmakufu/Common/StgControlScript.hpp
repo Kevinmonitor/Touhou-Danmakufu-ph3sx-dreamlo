@@ -38,6 +38,12 @@ class StgControlScript : public DnhScript {
 	friend StgControlScriptManager;
 public:
 	enum {
+
+		// Replay
+		LEADERBOARD_NAME,
+		LEADERBOARD_SCORE,
+		LEADERBOARD_COMMENT,
+
 		EV_USER_COUNT = 100000,
 		EV_USER = 1000000,
 		EV_USER_SYSTEM = 2000000,

@@ -125,7 +125,10 @@
 
 #include <cwchar>
 #include <exception>
-#include <cassert>
+
+#include <cstdlib>      
+#include <cassert>    
+#include <new>   
 
 #include <cmath>
 #include <cctype>
@@ -155,6 +158,8 @@
 #include <new>
 
 #include <regex>
+#include <iostream>
+
 
 //-------------------------------External stuffs--------------------------------
 
