@@ -29,7 +29,7 @@ public:
 	virtual bool IsError();
 
 	shared_ptr<StgStageScriptObjectManager> GetObjectManager() { return objManager_; }
-	virtual shared_ptr<ManagedScript> Create(int type);
+	virtual shared_ptr<ManagedScript> Create(shared_ptr<ScriptManager> manager, int type) override;
 
 	int64_t GetPlayerScriptID() { return idPlayerScript_; }
 	int64_t GetItemScriptID() { return idItemScript_; }
@@ -162,14 +162,23 @@ public:
 		TARGET_ENEMY,
 		TARGET_PLAYER,
 	};
+
 protected:
 	StgStageController* stageController_;
+
 public:
+
 	StgStageScript(StgStageController* stageController);
 	virtual ~StgStageScript();
 
 	StgStageController* GetStageController() { return stageController_; }
 	std::shared_ptr<StgStageScriptObjectManager> GetStgObjectManager();
+
+	// online
+
+	DNH_FUNCAPI_DECL_(Func_SaveEntryToLeaderboard);
+	DNH_FUNCAPI_DECL_(Func_HTTPGetRequest);
+	DNH_FUNCAPI_DECL_(Func_GetLeaderboardData);
 
 	//STG共通関数：共通データ
 	static gstd::value Func_SaveCommonDataAreaToReplayFile(gstd::script_machine* machine, int argc, const gstd::value* argv);
@@ -297,6 +306,7 @@ public:
 	static gstd::value Func_SetDefaultBonusItemEnable(gstd::script_machine* machine, int argc, const gstd::value* argv);
 	static gstd::value Func_LoadItemData(gstd::script_machine* machine, int argc, const gstd::value* argv);
 	static gstd::value Func_ReloadItemData(gstd::script_machine* machine, int argc, const gstd::value* argv);
+	DNH_FUNCAPI_DECL_(Func_GetAllItemID);
 	DNH_FUNCAPI_DECL_(Func_GetItemIdInCircleA1);
 	DNH_FUNCAPI_DECL_(Func_GetItemIdInCircleA2);
 	DNH_FUNCAPI_DECL_(Func_SetItemAutoDeleteClip);

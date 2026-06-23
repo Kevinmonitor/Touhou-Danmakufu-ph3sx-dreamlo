@@ -14,7 +14,7 @@ class StgShotObject;
 //StgShotManager
 //*******************************************************************
 class StgShotManager {
-	friend class StgShotVertexBufferContainer;
+	friend StgShotVertexBufferContainer;
 public:
 	enum {
 		DEL_TYPE_ALL,
@@ -96,8 +96,8 @@ public:
 		filterMag_ = mag;
 	}
 
-	void DeleteInCircle(int typeDelete, int typeTo, int typeOwner, int cx, int cy, int* radius);
-	std::vector<int> GetShotIdInCircle(int typeOwner, int cx, int cy, int* radius);
+	void DeleteInCircle(int typeDelete, int typeTo, int typeOwner, int cx, int cy, optional<int> radius);
+	std::vector<int> GetShotIdInCircle(int typeOwner, int cx, int cy, optional<int> radius);
 	size_t GetShotCount(int typeOwner);
 	size_t GetShotCountAll() { return listObj_.size(); }
 
@@ -205,7 +205,7 @@ public:
 //StgShotVertexBufferContainer
 //*******************************************************************
 class StgShotVertexBufferContainer {
-	friend class StgShotDataList;
+	friend StgShotDataList;
 public:
 	enum {
 		MAX_DATA = 2048,
@@ -469,7 +469,7 @@ public:
 //StgNormalShotObject
 //*******************************************************************
 class StgNormalShotObject : public StgShotObject {
-	friend class StgShotObject;
+	friend StgShotObject;
 protected:
 	double angularVelocity_;
 	bool bFixedAngle_;

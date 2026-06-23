@@ -1,4 +1,8 @@
 #include "source/GcLib/pch.h"
+#include "rapidxml/rapidxml.hpp"
+#include "rapidxml/rapidxml_iterators.hpp"
+#include "rapidxml/rapidxml_print.hpp"
+#include "rapidxml/rapidxml_utils.hpp"
 
 #include "StgStageScript.hpp"
 #include "StgSystem.hpp"
@@ -6,12 +10,47 @@
 #include "StgShot.hpp"
 #include "StgItem.hpp"
 
+//std::string statusToString(sf::Http::Response::Status status) {
+//
+//	switch (status) {
+//	case sf::Http::Response::Ok: return "OK";
+//	case sf::Http::Response::Created: return "CREATED";
+//	case sf::Http::Response::Accepted: return "ACCEPTED";
+//	case sf::Http::Response::NoContent: return "NOCON";
+//	case sf::Http::Response::ResetContent: return "RESETCON";
+//	case sf::Http::Response::PartialContent: return "PARTIALCON";
+//
+//	case sf::Http::Response::MultipleChoices: return "MULTIPLE";
+//	case sf::Http::Response::MovedPermanently: return "PERMAMOVED";
+//	case sf::Http::Response::MovedTemporarily: return "TEMPMOVED";
+//	case sf::Http::Response::NotModified: return "NOTMODIFIED";
+//
+//	case sf::Http::Response::BadRequest: return "BADREQUEST";
+//	case sf::Http::Response::Unauthorized: return "UNAUTHORIZED";
+//	case sf::Http::Response::Forbidden: return "FORBIDDEN";
+//	case sf::Http::Response::NotFound: return "NOTFOUND";
+//	case sf::Http::Response::RangeNotSatisfiable: return "BADRANGE";
+//
+//	case sf::Http::Response::InternalServerError: return "INTERNALSERVERERROR";
+//	case sf::Http::Response::NotImplemented: return "NOTIMPLEMENTED";
+//	case sf::Http::Response::BadGateway: return "BADGATEWAY";
+//	case sf::Http::Response::ServiceNotAvailable: return "NOSERVICE";
+//	case sf::Http::Response::GatewayTimeout: return "TIMEOUT";
+//	case sf::Http::Response::VersionNotSupported: return "VERSIONUNSUPPORTED";
+//
+//	case sf::Http::Response::InvalidResponse: return "1000";
+//	case sf::Http::Response::ConnectionFailed: return "1001";
+//	}
+//	return "UNKNOWN";
+//
+//}
+
 //*******************************************************************
 //StgStageScriptManager
 //*******************************************************************
 StgStageScriptManager::StgStageScriptManager(StgStageController* stageController) {
 	stageController_ = stageController;
-	objManager_ = stageController_->GetMainObjectManagerRef();
+	objManager_ = stageController_->GetMainObjectManager();
 	idPlayerScript_ = ID_INVALID;
 	idItemScript_ = ID_INVALID;
 }
@@ -27,7 +66,7 @@ bool StgStageScriptManager::IsError() {
 	return res;
 }
 
-shared_ptr<ManagedScript> StgStageScriptManager::Create(int type) {
+shared_ptr<ManagedScript> StgStageScriptManager::Create(shared_ptr<ScriptManager> manager, int type) {
 	shared_ptr<ManagedScript> res = nullptr;
 	switch (type) {
 	case StgStageScript::TYPE_STAGE:
@@ -120,7 +159,7 @@ void StgStageScriptObjectManager::RenderObject(int priMin, int priMax) {
 		gstd::ref_count_ptr<DxCamera> camera3D = graphics->GetCamera();
 		gstd::ref_count_ptr<DxCamera2D> camera2D = graphics->GetCamera2D();
 
-		ref_count_ptr<StgStageInformation> stageInfo = stageController_->GetStageInformation();
+		shared_ptr<StgStageInformation> stageInfo = stageController_->GetStageInformation();
 		RECT rcStgFrame = stageInfo->GetStgFrameRect();
 		int stgWidth = rcStgFrame.right - rcStgFrame.left;
 		int stgHeight = rcStgFrame.bottom - rcStgFrame.top;
@@ -221,7 +260,7 @@ void StgStageScriptObjectManager::RenderObject(int priMin, int priMax) {
 }
 int StgStageScriptObjectManager::CreatePlayerObject() {
 	//自機オブジェクト生成
-	ptrObjPlayer_ = new StgPlayerObject(stageController_);
+	ptrObjPlayer_.reset(new StgPlayerObject(stageController_));
 	idObjPlayer_ = AddObject(ptrObjPlayer_);
 	return idObjPlayer_;
 }
@@ -231,6 +270,14 @@ int StgStageScriptObjectManager::CreatePlayerObject() {
 //StgStageScript
 //*******************************************************************
 static const std::vector<function> stgStageFunction = {
+
+	// online cock and balls
+
+	{ "SaveEntryToLeaderboard", StgStageScript::Func_SaveEntryToLeaderboard, 4 },
+	{ "HTTPGetRequest", StgStageScript::Func_HTTPGetRequest, 3 },
+	
+	// leaderboard public code -> leaderboard data type
+	{ "GetLeaderboardData", StgStageScript::Func_GetLeaderboardData, 2},
 
 	//STG共通関数：共通データ
 	{ "SaveCommonDataAreaToReplayFile", StgStageScript::Func_SaveCommonDataAreaToReplayFile, 1 },
@@ -349,6 +396,7 @@ static const std::vector<function> stgStageFunction = {
 	{ "SetDefaultBonusItemEnable", StgStageScript::Func_SetDefaultBonusItemEnable, 1 },
 	{ "LoadItemData", StgStageScript::Func_LoadItemData, 1 },
 	{ "ReloadItemData", StgStageScript::Func_ReloadItemData, 1 },
+	{ "GetAllItemID", StgStageScript::Func_GetAllItemID, 0 },
 	{ "GetItemIdInCircleA1", StgStageScript::Func_GetItemIdInCircleA1, 3 },
 	{ "GetItemIdInCircleA2", StgStageScript::Func_GetItemIdInCircleA2, 4 },
 	{ "SetItemAutoDeleteClip", StgStageScript::Func_SetItemAutoDeleteClip, 4 },
@@ -771,13 +819,169 @@ StgStageScript::StgStageScript(StgStageController* stageController) : StgControl
 	mt_ = info->GetRandProvider();
 
 	scriptManager_ = stageController_->GetScriptManager();
-	StgStageScriptManager* scriptManager = (StgStageScriptManager*)scriptManager_;
+	auto scriptManager = std::dynamic_pointer_cast<StgStageScriptManager>(scriptManager_);
 	SetObjectManager(scriptManager->GetObjectManager());
 }
 StgStageScript::~StgStageScript() {}
-std::shared_ptr<StgStageScriptObjectManager> StgStageScript::GetStgObjectManager() {
-	StgStageScriptManager* scriptManager = (StgStageScriptManager*)scriptManager_;
+
+shared_ptr<StgStageScriptObjectManager> StgStageScript::GetStgObjectManager() {
+	auto scriptManager = std::dynamic_pointer_cast<StgStageScriptManager>(scriptManager_);
 	return scriptManager->GetObjectManager();
+}
+
+// connect to leaderboard
+gstd::value StgStageScript::Func_SaveEntryToLeaderboard(gstd::script_machine* machine, int argc, const gstd::value* argv) {
+	
+	StgStageScript* script = (StgStageScript*)machine->data;
+
+	// arguments: leaderboard PRIVATE CODE, name, score, string comment. argc has 4 indexes 0 to 3
+	// 
+	// set host for request, insert id
+
+	char host[] = "http://dreamlo.com/";
+
+	std::string hostString{ host };
+
+	//std::wstring leaderboardLinkWide = hostLink += argv[0].as_string();
+
+	std::string leaderboardID = STR_MULTI(argv[0].as_string());
+	std::string leaderboardName = STR_MULTI(argv[1].as_string());
+	std::string leaderboardScore = STR_MULTI(argv[2].as_string());
+	std::string leaderboardComment = STR_MULTI(argv[3].as_string());
+
+	std::string leaderboardSubmissionUri = "lb/" + leaderboardID + "/add/" + leaderboardName + "/" + leaderboardScore + "/1/" + leaderboardComment;
+
+	sf::Http http;
+	http.setHost(hostString + leaderboardSubmissionUri);
+
+	sf::Http::Request request;
+	request.setMethod(sf::Http::Request::Get);
+	request.setUri("/");
+
+	sf::Http::Response response = http.sendRequest(request, sf::seconds(10.0));
+
+	Logger::WriteTop(ILogger::LogType::User1, "link is... " + hostString + leaderboardSubmissionUri);
+	//Logger::WriteTop(ILogger::LogType::User1, statusToString(response.getStatus()));
+	// wait for a maximum of 10 seconds. return whether sending the request was successful.
+
+	return script->CreateBooleanValue(response.getStatus() == sf::Http::Response::Ok);
+
+}
+
+gstd::value StgStageScript::Func_HTTPGetRequest(gstd::script_machine* machine, int argc, const gstd::value* argv) {
+
+	StgStageScript* script = (StgStageScript*)machine->data;
+
+	// arguments: host, uri, timeout
+	// 
+	// set host for request, insert id
+
+	sf::Http http;
+	http.setHost(STR_MULTI(argv[0].as_string()));
+
+	sf::Http::Request request;
+	request.setMethod(sf::Http::Request::Get);
+	request.setUri(STR_MULTI(argv[1].as_string()));
+
+	sf::Http::Response response = http.sendRequest(request, sf::seconds(argv[2].as_float()));
+	sf::Http::Response::Status result = response.getStatus();
+	//std::string resultToString = statusToString(result);
+
+	Logger::WriteTop(ILogger::LogType::User1, "host:" + STR_MULTI(argv[0].as_string()));
+	Logger::WriteTop(ILogger::LogType::User1, "uri:" + STR_MULTI(argv[1].as_string()));
+	//Logger::WriteTop(ILogger::LogType::User1, resultToString);
+	// wait for a maximum of 10 seconds. return whether sending the request was successful.
+
+	return script->CreateBooleanValue(response.getStatus() == sf::Http::Response::Ok);
+
+}
+
+gstd::value StgStageScript::Func_GetLeaderboardData(gstd::script_machine* machine, int argc, const gstd::value* argv) {
+
+	StgStageScript* script = (StgStageScript*)machine->data;
+
+	// arguments: leaderboard PUBLIC CODE, DATA TYPE
+	// 
+	// returns an array of one of these.
+	// [names][scores]["comments"]
+	//
+	// set host for request, insert id
+
+	// valid: "LEADERBOARD_NAME", "LEADERBOARD_SCORE", "LEADERBOARD_COMMENT"
+
+	char host[] = "http://dreamlo.com/";
+
+	// this is so terrible. im killing myself
+
+	std::string hostString{ host };
+
+	std::string leaderboardID = STR_MULTI(argv[0].as_string());
+	int leaderboardDataType = argv[1].as_int();
+
+	std::vector<std::string> values = { "NAME", "SCORE", "COMMENT" };
+
+	sf::Http http;
+	http.setHost(hostString);
+
+	sf::Http::Request request;
+
+	std::string leaderboardRequestUri = "/" + leaderboardID + "/xml";
+
+	request.setMethod(sf::Http::Request::Get);
+	request.setUri(leaderboardRequestUri); // leaderboardID
+
+	sf::Http::Response response = http.sendRequest(request, sf::seconds(10.0));
+	std::string responseData = response.getBody();
+
+	std::cin >> responseData;
+	std::ofstream out("score.xml");
+	out << responseData;
+	out.close();
+
+	rapidxml::file<> xmlFile("score.xml"); // fuck
+	rapidxml::xml_document<> doc;
+	doc.parse<0>(xmlFile.data());
+
+	std::vector<std::string> result;
+
+	// MAKE SURE TO DELETE THE FILE IMMEDIATELY AFTER YOURE DONE
+
+	// Find our root node
+	rapidxml::xml_node<>* root_node;
+	root_node = doc.first_node("dreamlo");
+
+	switch (leaderboardDataType) {
+		case 0:
+			for (
+				rapidxml::xml_node<>* entry_node = root_node->first_node("leaderboard")->next_sibling("entry"); entry_node; entry_node = entry_node->next_sibling()
+				)
+			{
+				result.push_back(entry_node->first_node("name")->value());
+			}
+			break;
+		case 1:
+			for (
+				rapidxml::xml_node<>* entry_node = root_node->first_node("leaderboard")->next_sibling("entry"); entry_node; entry_node = entry_node->next_sibling()
+				)
+			{
+				result.push_back(entry_node->first_node("score")->value());
+			}
+			break;
+		case 2:
+			for (
+				rapidxml::xml_node<>* entry_node = root_node->first_node("leaderboard")->next_sibling("entry"); entry_node; entry_node = entry_node->next_sibling()
+				)
+			{
+				result.push_back(entry_node->first_node("text")->value());
+			}
+			break;
+		result.push_back(0);
+	}
+
+	std::remove("score.xml");
+
+	return script->CreateStringArrayValue(result);
+
 }
 
 //STG制御共通関数：共通データ
@@ -786,43 +990,50 @@ gstd::value StgStageScript::Func_SaveCommonDataAreaToReplayFile(gstd::script_mac
 	StgStageController* stageController = script->stageController_;
 	ref_count_ptr<StgStageInformation> infoStage = stageController->GetStageInformation();
 	ref_count_ptr<ReplayInformation::StageData> replayStageData = infoStage->GetReplayData();
-	ScriptCommonDataManager* commonDataManager = ScriptCommonDataManager::GetInstance();
+
+	auto commonDataManager = stageController->GetSystemController()->GetCommonDataManager();
 
 	if (infoStage->IsReplay())
 		script->RaiseError(L"This function can only be called outside of replays.");
 
 	bool res = false;
-	std::string area = StringUtility::ConvertWideToMulti(argv[0].as_string());
 
-	shared_ptr<ScriptCommonData> commonDataO = commonDataManager->GetData(area);
-	if (commonDataO) {
-		shared_ptr<ScriptCommonData> commonDataS(new ScriptCommonData());
-		commonDataS->Copy(commonDataO);
-		replayStageData->SetCommonData(area, commonDataS);
+	std::string nameArea = STR_MULTI(argv[0].as_string());
+	if (auto area = commonDataManager->GetArea(nameArea)) {
+		auto areaCopy = std::make_unique<ScriptCommonDataArea>();
+		areaCopy->Copy(area);
+
+		replayStageData->SetCommonData(nameArea, areaCopy.get());
+
 		res = true;
 	}
+
 	return script->CreateBooleanValue(res);
 }
+
 gstd::value StgStageScript::Func_LoadCommonDataAreaFromReplayFile(gstd::script_machine* machine, int argc, const gstd::value* argv) {
 	StgStageScript* script = (StgStageScript*)machine->data;
 	StgStageController* stageController = script->stageController_;
 	ref_count_ptr<StgStageInformation> infoStage = stageController->GetStageInformation();
 	ref_count_ptr<ReplayInformation::StageData> replayStageData = infoStage->GetReplayData();
-	ScriptCommonDataManager* commonDataManager = ScriptCommonDataManager::GetInstance();
+
+	auto commonDataManager = stageController->GetSystemController()->GetCommonDataManager();
 
 	if (!infoStage->IsReplay())
 		script->RaiseError(L"This function can only be called during replays.");
 
 	bool res = false;
-	std::string area = StringUtility::ConvertWideToMulti(argv[0].as_string());
 
-	shared_ptr<ScriptCommonData> commonDataS = replayStageData->GetCommonData(area);
-	if (commonDataS) {
-		shared_ptr<ScriptCommonData> commonDataO(new ScriptCommonData());
-		commonDataO->Copy(commonDataS);
-		commonDataManager->SetData(area, commonDataO);
+	std::string nameArea = STR_MULTI(argv[0].as_string());
+	if (auto area = replayStageData->GetCommonData(nameArea)) {
+		auto areaCopy = std::make_unique<ScriptCommonDataArea>();
+		areaCopy->Copy(area.get());
+
+		commonDataManager->SetArea(nameArea, MOVE(areaCopy));
+
 		res = true;
 	}
+
 	return script->CreateBooleanValue(res);
 }
 
@@ -837,6 +1048,7 @@ gstd::value StgStageScript::Func_GetMainStgScriptPath(gstd::script_machine* mach
 
 	return script->CreateStringValue(path);
 }
+
 gstd::value StgStageScript::Func_GetMainStgScriptDirectory(gstd::script_machine* machine, int argc, const gstd::value* argv) {
 	StgStageScript* script = (StgStageScript*)machine->data;
 	StgStageController* stageController = script->stageController_;
@@ -1492,7 +1704,8 @@ gstd::value StgStageScript::Func_DeleteShotAll(gstd::script_machine* machine, in
 	case TYPE_ITEM:typeTo = StgShotManager::TO_TYPE_ITEM; break;
 	}
 
-	stageController->GetShotManager()->DeleteInCircle(typeDel, typeTo, StgShotObject::OWNER_ENEMY, 0, 0, nullptr);
+	stageController->GetShotManager()->DeleteInCircle(typeDel, typeTo, 
+		StgShotObject::OWNER_ENEMY, 0, 0, {});
 
 	return value();
 }
@@ -1518,7 +1731,8 @@ gstd::value StgStageScript::Func_DeleteShotInCircle(gstd::script_machine* machin
 	case TYPE_ITEM:typeTo = StgShotManager::TO_TYPE_ITEM; break;
 	}
 
-	stageController->GetShotManager()->DeleteInCircle(typeDel, typeTo, StgShotObject::OWNER_ENEMY, posX, posY, &radius);
+	stageController->GetShotManager()->DeleteInCircle(typeDel, typeTo, 
+		StgShotObject::OWNER_ENEMY, posX, posY, radius);
 
 	return value();
 }
@@ -1528,7 +1742,7 @@ gstd::value StgStageScript::Func_CreateShotA1(gstd::script_machine* machine, int
 
 	int id = ID_INVALID;
 	if (stageController->GetShotManager()->GetShotCountAll() < StgShotManager::SHOT_MAX) {
-		ref_unsync_ptr<StgNormalShotObject> obj = new StgNormalShotObject(stageController);
+		ref_unsync_ptr<StgNormalShotObject> obj(new StgNormalShotObject(stageController));
 		id = script->AddObject(obj);
 		if (id != ID_INVALID) {
 			stageController->GetShotManager()->AddShot(obj);
@@ -1559,7 +1773,7 @@ gstd::value StgStageScript::Func_CreateShotA2(gstd::script_machine* machine, int
 
 	int id = ID_INVALID;
 	if (stageController->GetShotManager()->GetShotCountAll() < StgShotManager::SHOT_MAX) {
-		ref_unsync_ptr<StgNormalShotObject> obj = new StgNormalShotObject(stageController);
+		ref_unsync_ptr<StgNormalShotObject> obj(new StgNormalShotObject(stageController));
 		id = script->AddObject(obj);
 		if (id != ID_INVALID) {
 			stageController->GetShotManager()->AddShot(obj);
@@ -1617,7 +1831,7 @@ gstd::value StgStageScript::Func_CreateShotOA1(gstd::script_machine* machine, in
 			double posX = tObj->GetPosition().x;
 			double posY = tObj->GetPosition().y;
 
-			ref_unsync_ptr<StgNormalShotObject> obj = new StgNormalShotObject(stageController);
+			ref_unsync_ptr<StgNormalShotObject> obj(new StgNormalShotObject(stageController));
 			id = script->AddObject(obj);
 			if (id != ID_INVALID) {
 				stageController->GetShotManager()->AddShot(obj);
@@ -1647,7 +1861,7 @@ gstd::value StgStageScript::Func_CreateShotB1(gstd::script_machine* machine, int
 
 	int id = ID_INVALID;
 	if (stageController->GetShotManager()->GetShotCountAll() < StgShotManager::SHOT_MAX) {
-		ref_unsync_ptr<StgNormalShotObject> obj = new StgNormalShotObject(stageController);
+		ref_unsync_ptr<StgNormalShotObject> obj(new StgNormalShotObject(stageController));
 		id = script->AddObject(obj);
 		if (id != ID_INVALID) {
 			stageController->GetShotManager()->AddShot(obj);
@@ -1667,7 +1881,7 @@ gstd::value StgStageScript::Func_CreateShotB1(gstd::script_machine* machine, int
 			obj->SetDelay(delay);
 			obj->SetOwnerType(typeOwner);
 
-			ref_unsync_ptr<StgMovePattern_XY> pattern = new StgMovePattern_XY(obj.get());
+			ref_unsync_ptr<StgMovePattern_XY> pattern(new StgMovePattern_XY(obj.get()));
 			pattern->SetSpeedX(speedX);
 			pattern->SetSpeedY(speedY);
 			obj->SetPattern(pattern);
@@ -1681,7 +1895,7 @@ gstd::value StgStageScript::Func_CreateShotB2(gstd::script_machine* machine, int
 
 	int id = ID_INVALID;
 	if (stageController->GetShotManager()->GetShotCountAll() < StgShotManager::SHOT_MAX) {
-		ref_unsync_ptr<StgNormalShotObject> obj = new StgNormalShotObject(stageController);
+		ref_unsync_ptr<StgNormalShotObject> obj(new StgNormalShotObject(stageController));
 		id = script->AddObject(obj);
 		if (id != ID_INVALID) {
 			stageController->GetShotManager()->AddShot(obj);
@@ -1705,7 +1919,7 @@ gstd::value StgStageScript::Func_CreateShotB2(gstd::script_machine* machine, int
 			obj->SetDelay(delay);
 			obj->SetOwnerType(typeOwner);
 
-			ref_unsync_ptr<StgMovePattern_XY> pattern = new StgMovePattern_XY(obj.get());
+			ref_unsync_ptr<StgMovePattern_XY> pattern(new StgMovePattern_XY(obj.get()));
 			pattern->SetSpeedX(speedX);
 			pattern->SetSpeedY(speedY);
 			pattern->SetAccelerationX(accelX);
@@ -1728,7 +1942,7 @@ gstd::value StgStageScript::Func_CreateShotOB1(gstd::script_machine* machine, in
 			double posX = tObj->GetPosition().x;
 			double posY = tObj->GetPosition().y;
 
-			ref_unsync_ptr<StgNormalShotObject> obj = new StgNormalShotObject(stageController);
+			ref_unsync_ptr<StgNormalShotObject> obj(new StgNormalShotObject(stageController));
 			id = script->AddObject(obj);
 			if (id != ID_INVALID) {
 				stageController->GetShotManager()->AddShot(obj);
@@ -1746,7 +1960,7 @@ gstd::value StgStageScript::Func_CreateShotOB1(gstd::script_machine* machine, in
 				obj->SetDelay(delay);
 				obj->SetOwnerType(typeOwner);
 
-				ref_unsync_ptr<StgMovePattern_XY> pattern = new StgMovePattern_XY(obj.get());
+				ref_unsync_ptr<StgMovePattern_XY> pattern(new StgMovePattern_XY(obj.get()));
 				pattern->SetSpeedX(speedX);
 				pattern->SetSpeedY(speedY);
 				obj->SetPattern(pattern);
@@ -1761,7 +1975,7 @@ gstd::value StgStageScript::Func_CreateShotC1(gstd::script_machine* machine, int
 
 	int id = ID_INVALID;
 	if (stageController->GetShotManager()->GetShotCountAll() < StgShotManager::SHOT_MAX) {
-		ref_unsync_ptr<StgNormalShotObject> obj = new StgNormalShotObject(stageController);
+		ref_unsync_ptr<StgNormalShotObject> obj(new StgNormalShotObject(stageController));
 		id = script->AddObject(obj);
 		if (id != ID_INVALID) {
 			stageController->GetShotManager()->AddShot(obj);
@@ -1782,7 +1996,7 @@ gstd::value StgStageScript::Func_CreateShotC1(gstd::script_machine* machine, int
 			obj->SetDelay(delay);
 			obj->SetOwnerType(typeOwner);
 
-			ref_unsync_ptr<StgMovePattern_XY_Angle> pattern = new StgMovePattern_XY_Angle(obj.get());
+			ref_unsync_ptr<StgMovePattern_XY_Angle> pattern(new StgMovePattern_XY_Angle(obj.get()));
 			pattern->SetSpeedX(speedX);
 			pattern->SetSpeedY(speedY);
 			pattern->SetAngleOffset(Math::DegreeToRadian(angOff));
@@ -1797,7 +2011,7 @@ gstd::value StgStageScript::Func_CreateShotC2(gstd::script_machine* machine, int
 
 	int id = ID_INVALID;
 	if (stageController->GetShotManager()->GetShotCountAll() < StgShotManager::SHOT_MAX) {
-		ref_unsync_ptr<StgNormalShotObject> obj = new StgNormalShotObject(stageController);
+		ref_unsync_ptr<StgNormalShotObject> obj(new StgNormalShotObject(stageController));
 		id = script->AddObject(obj);
 		if (id != ID_INVALID) {
 			stageController->GetShotManager()->AddShot(obj);
@@ -1823,7 +2037,7 @@ gstd::value StgStageScript::Func_CreateShotC2(gstd::script_machine* machine, int
 			obj->SetDelay(delay);
 			obj->SetOwnerType(typeOwner);
 
-			ref_unsync_ptr<StgMovePattern_XY_Angle> pattern = new StgMovePattern_XY_Angle(obj.get());
+			ref_unsync_ptr<StgMovePattern_XY_Angle> pattern(new StgMovePattern_XY_Angle(obj.get()));
 			pattern->SetSpeedX(speedX);
 			pattern->SetSpeedY(speedY);
 			pattern->SetAccelerationX(accelX);
@@ -1848,7 +2062,7 @@ gstd::value StgStageScript::Func_CreateShotOC1(gstd::script_machine* machine, in
 			double posX = tObj->GetPosition().x;
 			double posY = tObj->GetPosition().y;
 
-			ref_unsync_ptr<StgNormalShotObject> obj = new StgNormalShotObject(stageController);
+			ref_unsync_ptr<StgNormalShotObject> obj(new StgNormalShotObject(stageController));
 			id = script->AddObject(obj);
 			if (id != ID_INVALID) {
 				stageController->GetShotManager()->AddShot(obj);
@@ -1867,7 +2081,7 @@ gstd::value StgStageScript::Func_CreateShotOC1(gstd::script_machine* machine, in
 				obj->SetDelay(delay);
 				obj->SetOwnerType(typeOwner);
 
-				ref_unsync_ptr<StgMovePattern_XY_Angle> pattern = new StgMovePattern_XY_Angle(obj.get());
+				ref_unsync_ptr<StgMovePattern_XY_Angle> pattern(new StgMovePattern_XY_Angle(obj.get()));
 				pattern->SetSpeedX(speedX);
 				pattern->SetSpeedY(speedY);
 				pattern->SetAngleOffset(Math::DegreeToRadian(angOff));
@@ -1884,7 +2098,7 @@ gstd::value StgStageScript::Func_CreateLooseLaserA1(gstd::script_machine* machin
 
 	int id = ID_INVALID;
 	if (stageController->GetShotManager()->GetShotCountAll() < StgShotManager::SHOT_MAX) {
-		ref_unsync_ptr<StgLooseLaserObject> obj = new StgLooseLaserObject(stageController);
+		ref_unsync_ptr<StgLooseLaserObject> obj(new StgLooseLaserObject(stageController));
 		id = script->AddObject(obj);
 		if (id != ID_INVALID) {
 			stageController->GetShotManager()->AddShot(obj);
@@ -1920,7 +2134,7 @@ gstd::value StgStageScript::Func_CreateStraightLaserA1(gstd::script_machine* mac
 
 	int id = ID_INVALID;
 	if (stageController->GetShotManager()->GetShotCountAll() < StgShotManager::SHOT_MAX) {
-		ref_unsync_ptr<StgStraightLaserObject> obj = new StgStraightLaserObject(stageController);
+		ref_unsync_ptr<StgStraightLaserObject> obj(new StgStraightLaserObject(stageController));
 		id = script->AddObject(obj);
 		if (id != ID_INVALID) {
 			stageController->GetShotManager()->AddShot(obj);
@@ -1955,7 +2169,7 @@ gstd::value StgStageScript::Func_CreateCurveLaserA1(gstd::script_machine* machin
 
 	int id = ID_INVALID;
 	if (stageController->GetShotManager()->GetShotCountAll() < StgShotManager::SHOT_MAX) {
-		ref_unsync_ptr<StgCurveLaserObject> obj = new StgCurveLaserObject(stageController);
+		ref_unsync_ptr<StgCurveLaserObject> obj(new StgCurveLaserObject(stageController));
 		id = script->AddObject(obj);
 		if (id != ID_INVALID) {
 			stageController->GetShotManager()->AddShot(obj);
@@ -1998,7 +2212,7 @@ gstd::value StgStageScript::Func_SetShotIntersectionCircle(gstd::script_machine*
 	float radius = argv[2].as_float();
 	DxCircle circle(px, py, radius);
 
-	ref_unsync_ptr<StgIntersectionTarget_Circle> target = new StgIntersectionTarget_Circle();
+	ref_unsync_ptr<StgIntersectionTarget_Circle> target(new StgIntersectionTarget_Circle());
 	if (target) {
 		target->SetTargetType(typeTarget);
 		target->SetCircle(circle);
@@ -2023,7 +2237,7 @@ gstd::value StgStageScript::Func_SetShotIntersectionLine(gstd::script_machine* m
 	float width = argv[4].as_float();
 	DxWidthLine line(px1, py1, px2, py2, width);
 
-	ref_unsync_ptr<StgIntersectionTarget_Line> target = new StgIntersectionTarget_Line();
+	ref_unsync_ptr<StgIntersectionTarget_Line> target(new StgIntersectionTarget_Line());
 	if (target) {
 		target->SetTargetType(typeTarget);
 		target->SetLine(line);
@@ -2047,7 +2261,7 @@ gstd::value StgStageScript::Func_GetAllShotID(gstd::script_machine* machine, int
 	case TARGET_ENEMY:typeOwner = StgShotObject::OWNER_ENEMY; break;
 	}
 
-	std::vector<int> listID = shotManager->GetShotIdInCircle(typeOwner, 0, 0, nullptr);
+	std::vector<int> listID = shotManager->GetShotIdInCircle(typeOwner, 0, 0, {});
 	return script->CreateIntArrayValue(listID);
 }
 gstd::value StgStageScript::Func_GetShotIdInCircleA1(gstd::script_machine* machine, int argc, const gstd::value* argv) {
@@ -2060,7 +2274,7 @@ gstd::value StgStageScript::Func_GetShotIdInCircleA1(gstd::script_machine* machi
 	int radius = argv[2].as_float();
 	int typeOwner = script->GetScriptType() == TYPE_PLAYER ? StgShotObject::OWNER_PLAYER : StgShotObject::OWNER_ENEMY;
 
-	std::vector<int> listID = shotManager->GetShotIdInCircle(typeOwner, px, py, &radius);
+	std::vector<int> listID = shotManager->GetShotIdInCircle(typeOwner, px, py, radius);
 	return script->CreateIntArrayValue(listID);
 }
 gstd::value StgStageScript::Func_GetShotIdInCircleA2(gstd::script_machine* machine, int argc, const gstd::value* argv) {
@@ -2080,7 +2294,7 @@ gstd::value StgStageScript::Func_GetShotIdInCircleA2(gstd::script_machine* machi
 	case TARGET_ENEMY:typeOwner = StgShotObject::OWNER_ENEMY; break;
 	}
 
-	std::vector<int> listID = shotManager->GetShotIdInCircle(typeOwner, px, py, &radius);
+	std::vector<int> listID = shotManager->GetShotIdInCircle(typeOwner, px, py, radius);
 	return script->CreateIntArrayValue(listID);
 }
 gstd::value StgStageScript::Func_GetShotCount(gstd::script_machine* machine, int argc, const gstd::value* argv) {
@@ -2357,7 +2571,7 @@ gstd::value StgStageScript::Func_CreateItemScore(gstd::script_machine* machine, 
 	double posX = argv[1].as_float();
 	double posY = argv[2].as_float();
 
-	ref_unsync_ptr<StgItemObject_ScoreText> obj = new StgItemObject_ScoreText(stageController);
+	ref_unsync_ptr<StgItemObject_ScoreText> obj(new StgItemObject_ScoreText(stageController));
 	int id = script->AddObject(obj);
 	if (id != ID_INVALID) {
 		itemManager->AddItem(obj);
@@ -2404,9 +2618,10 @@ gstd::value StgStageScript::Func_StartItemScript(gstd::script_machine* machine, 
 	path = PathProperty::GetUnique(path);
 
 	int type = script->GetScriptType();
-	shared_ptr<ManagedScript> idScript = scriptManager->LoadScript(path, StgStageScript::TYPE_ITEM);
+	shared_ptr<ManagedScript> idScript = scriptManager->LoadScript(scriptManager, path, StgStageScript::TYPE_ITEM);
 	scriptManager->StartScript(idScript);
 	scriptManager->SetItemScript(idScript);
+
 	return value();
 }
 gstd::value StgStageScript::Func_SetDefaultBonusItemEnable(gstd::script_machine* machine, int argc, const gstd::value* argv) {
@@ -2437,6 +2652,13 @@ gstd::value StgStageScript::Func_ReloadItemData(gstd::script_machine* machine, i
 	bool res = itemManager->LoadItemData(path, true);
 	return script->CreateBooleanValue(res);
 }
+gstd::value StgStageScript::Func_GetAllItemID(gstd::script_machine* machine, int argc, const gstd::value* argv) {
+	StgStageScript* script = (StgStageScript*)machine->data;
+	StgItemManager* itemManager = script->stageController_->GetItemManager();
+
+	std::vector<int> listID = itemManager->GetItemIdInCircle(0, 0, {}, {});
+	return script->CreateIntArrayValue(listID);
+}
 gstd::value StgStageScript::Func_GetItemIdInCircleA1(gstd::script_machine* machine, int argc, const gstd::value* argv) {
 	StgStageScript* script = (StgStageScript*)machine->data;
 	StgItemManager* itemManager = script->stageController_->GetItemManager();
@@ -2445,7 +2667,7 @@ gstd::value StgStageScript::Func_GetItemIdInCircleA1(gstd::script_machine* machi
 	int py = argv[1].as_float();
 	int radius = argv[2].as_float();
 
-	std::vector<int> listID = itemManager->GetItemIdInCircle(px, py, radius, nullptr);
+	std::vector<int> listID = itemManager->GetItemIdInCircle(px, py, radius, {});
 	return script->CreateIntArrayValue(listID);
 }
 gstd::value StgStageScript::Func_GetItemIdInCircleA2(gstd::script_machine* machine, int argc, const gstd::value* argv) {
@@ -2457,7 +2679,7 @@ gstd::value StgStageScript::Func_GetItemIdInCircleA2(gstd::script_machine* machi
 	int radius = argv[2].as_float();
 	int type = argv[3].as_int();
 
-	std::vector<int> listID = itemManager->GetItemIdInCircle(px, py, radius, &type);
+	std::vector<int> listID = itemManager->GetItemIdInCircle(px, py, radius, type);
 	return script->CreateIntArrayValue(listID);
 }
 gstd::value StgStageScript::Func_SetItemAutoDeleteClip(gstd::script_machine* machine, int argc, const gstd::value* argv) {
@@ -2495,7 +2717,7 @@ gstd::value StgStageScript::Func_StartSlow(gstd::script_machine* machine, int ar
 	int typeOwner = script->GetScriptType() == TYPE_PLAYER ?
 		PseudoSlowInformation::OWNER_PLAYER : PseudoSlowInformation::OWNER_ENEMY;
 
-	ref_count_ptr<PseudoSlowInformation> infoSlow = stageController->GetSlowInformation();
+	auto infoSlow = stageController->GetSlowInformation();
 	infoSlow->AddSlow(fps, typeOwner, slowTarget);
 
 	return value();
@@ -2510,7 +2732,7 @@ gstd::value StgStageScript::Func_StopSlow(gstd::script_machine* machine, int arg
 	int typeOwner = script->GetScriptType() == TYPE_PLAYER ?
 		PseudoSlowInformation::OWNER_PLAYER : PseudoSlowInformation::OWNER_ENEMY;
 
-	ref_count_ptr<PseudoSlowInformation> infoSlow = stageController->GetSlowInformation();
+	auto infoSlow = stageController->GetSlowInformation();
 	infoSlow->RemoveSlow(typeOwner, slowTarget);
 
 	return value();
@@ -2674,7 +2896,7 @@ gstd::value StgStageScript::Func_ObjMove_SetSpeed(gstd::script_machine* machine,
 			}
 		}
 		
-		obj->AddPattern(0, new StgMovePattern_Angle(obj));
+		obj->AddPattern(0, ref_unsync_ptr<StgMovePattern>(new StgMovePattern_Angle(obj)));
 lab_set:
 		obj->SetSpeed(speed);
 	}
@@ -2712,7 +2934,7 @@ gstd::value StgStageScript::Func_ObjMove_SetAngle(gstd::script_machine* machine,
 			}
 		}
 
-		obj->AddPattern(0, new StgMovePattern_Angle(obj));
+		obj->AddPattern(0, ref_unsync_ptr<StgMovePattern>(new StgMovePattern_Angle(obj)));
 lab_set:
 		obj->SetDirectionAngle(angle);
 	}
@@ -2755,7 +2977,7 @@ gstd::value StgStageScript::Func_ObjMove_SetAcceleration(gstd::script_machine* m
 			}
 		}
 
-		pattern = new StgMovePattern_Angle(obj);
+		pattern.reset(new StgMovePattern_Angle(obj));
 		obj->AddPattern(0, pattern);
 lab_set:
 		((StgMovePattern_Angle*)pattern.get())->SetAcceleration(accel);
@@ -2781,7 +3003,7 @@ gstd::value StgStageScript::Func_ObjMove_SetAngularVelocity(gstd::script_machine
 			}
 		}
 
-		pattern = new StgMovePattern_Angle(obj);
+		pattern.reset(new StgMovePattern_Angle(obj));
 		obj->AddPattern(0, pattern);
 lab_set:
 		((StgMovePattern_Angle*)pattern.get())->SetAngularVelocity(ang);
@@ -2825,7 +3047,7 @@ gstd::value StgStageScript::Func_ObjMove_SetMaxSpeed(gstd::script_machine* machi
 			}
 		}
 
-		pattern = new StgMovePattern_Angle(obj);
+		pattern.reset(new StgMovePattern_Angle(obj));
 		obj->AddPattern(0, pattern);
 lab_set:
 		((StgMovePattern_Angle*)pattern.get())->SetMaxSpeed(speed);
@@ -2851,7 +3073,7 @@ gstd::value StgStageScript::Func_ObjMove_SetAngularAcceleration(gstd::script_mac
 			}
 		}
 
-		pattern = new StgMovePattern_Angle(obj);
+		pattern.reset(new StgMovePattern_Angle(obj));
 		obj->AddPattern(0, pattern);
 lab_set:
 		((StgMovePattern_Angle*)pattern.get())->SetAngularAcceleration(ang);
@@ -2877,7 +3099,7 @@ gstd::value StgStageScript::Func_ObjMove_SetAngularMaxVelocity(gstd::script_mach
 			}
 		}
 
-		pattern = new StgMovePattern_Angle(obj);
+		pattern.reset(new StgMovePattern_Angle(obj));
 		obj->AddPattern(0, pattern);
 lab_set:
 		((StgMovePattern_Angle*)pattern.get())->SetAngularMaxVelocity(ang);
@@ -3065,7 +3287,7 @@ gstd::value StgStageScript::Func_ObjMove_SetDestAtSpeed(gstd::script_machine* ma
 		double ty = argv[2].as_float();
 		double speed = argv[3].as_float();
 
-		ref_unsync_ptr<StgMovePattern_Line_Speed> pattern = new StgMovePattern_Line_Speed(obj);
+		ref_unsync_ptr<StgMovePattern_Line_Speed> pattern(new StgMovePattern_Line_Speed(obj));
 		pattern->SetAtSpeed(tx, ty, speed);
 		obj->SetPattern(pattern);
 	}
@@ -3088,7 +3310,7 @@ gstd::value StgStageScript::Func_ObjMove_SetDestAtFrame(gstd::script_machine* ma
 			lerpModeDiff = Math::Lerp::GetFuncDifferential<double>(type);
 		}
 
-		ref_unsync_ptr<StgMovePattern_Line_Frame> pattern = new StgMovePattern_Line_Frame(obj);
+		ref_unsync_ptr<StgMovePattern_Line_Frame> pattern(new StgMovePattern_Line_Frame(obj));
 		pattern->SetAtFrame(tx, ty, frame, lerpMode, lerpModeDiff);
 		obj->SetPattern(pattern);
 	}
@@ -3104,7 +3326,7 @@ gstd::value StgStageScript::Func_ObjMove_SetDestAtWeight(gstd::script_machine* m
 		double weight = argv[3].as_float();
 		double maxSpeed = argv[4].as_float();
 
-		ref_unsync_ptr<StgMovePattern_Line_Weight> pattern = new StgMovePattern_Line_Weight(obj);
+		ref_unsync_ptr<StgMovePattern_Line_Weight> pattern(new StgMovePattern_Line_Weight(obj));
 		pattern->SetAtWeight(tx, ty, weight, maxSpeed);
 		obj->SetPattern(pattern);
 	}
@@ -3124,7 +3346,7 @@ gstd::value StgStageScript::Func_ObjMove_AddPatternA1(gstd::script_machine* mach
 		double speed = argv[2].as_float();
 		double angle = argv[3].as_float();
 
-		ref_unsync_ptr<StgMovePattern_Angle> pattern = new StgMovePattern_Angle(obj);
+		ref_unsync_ptr<StgMovePattern_Angle> pattern(new StgMovePattern_Angle(obj));
 		pattern->AddCommand(std::make_pair(StgMovePattern_Angle::SET_ZERO, 0));
 
 		ADD_CMD(StgMovePattern_Angle::SET_SPEED, speed);
@@ -3146,7 +3368,7 @@ gstd::value StgStageScript::Func_ObjMove_AddPatternA2(gstd::script_machine* mach
 		double maxsp = argv[5].as_float();
 		double agvel = argv[6].as_float();
 
-		ref_unsync_ptr<StgMovePattern_Angle> pattern = new StgMovePattern_Angle(obj);
+		ref_unsync_ptr<StgMovePattern_Angle> pattern(new StgMovePattern_Angle(obj));
 
 		ADD_CMD(StgMovePattern_Angle::SET_SPEED, speed);
 		ADD_CMD2(StgMovePattern_Angle::SET_ANGLE, angle, Math::DegreeToRadian(angle));
@@ -3171,7 +3393,7 @@ gstd::value StgStageScript::Func_ObjMove_AddPatternA3(gstd::script_machine* mach
 		double agvel = argv[6].as_float();
 		int idShot = argv[7].as_int();
 
-		ref_unsync_ptr<StgMovePattern_Angle> pattern = new StgMovePattern_Angle(obj);
+		ref_unsync_ptr<StgMovePattern_Angle> pattern(new StgMovePattern_Angle(obj));
 
 		ADD_CMD(StgMovePattern_Angle::SET_SPEED, speed);
 		ADD_CMD2(StgMovePattern_Angle::SET_ANGLE, angle, Math::DegreeToRadian(angle));
@@ -3198,7 +3420,7 @@ gstd::value StgStageScript::Func_ObjMove_AddPatternA4(gstd::script_machine* mach
 		int idGraphic = argv[7].as_int();
 		int idRelative = argv[8].as_int();
 
-		ref_unsync_ptr<StgMovePattern_Angle> pattern = new StgMovePattern_Angle(obj);
+		ref_unsync_ptr<StgMovePattern_Angle> pattern(new StgMovePattern_Angle(obj));
 
 		ADD_CMD(StgMovePattern_Angle::SET_SPEED, speed);
 		ADD_CMD2(StgMovePattern_Angle::SET_ANGLE, angle, Math::DegreeToRadian(angle));
@@ -3229,7 +3451,7 @@ gstd::value StgStageScript::Func_ObjMove_AddPatternA5(gstd::script_machine* mach
 		int idGraphic = argv[9].as_int();
 		int idRelative = argv[10].as_int();
 
-		ref_unsync_ptr<StgMovePattern_Angle> pattern = new StgMovePattern_Angle(obj);
+		ref_unsync_ptr<StgMovePattern_Angle> pattern(new StgMovePattern_Angle(obj));
 
 		ADD_CMD(StgMovePattern_Angle::SET_SPEED, speed);
 		ADD_CMD2(StgMovePattern_Angle::SET_ANGLE, angle, Math::DegreeToRadian(angle));
@@ -3255,7 +3477,7 @@ gstd::value StgStageScript::Func_ObjMove_AddPatternB1(gstd::script_machine* mach
 		double speedX = argv[2].as_float();
 		double speedY = argv[3].as_float();
 
-		ref_unsync_ptr<StgMovePattern_XY> pattern = new StgMovePattern_XY(obj);
+		ref_unsync_ptr<StgMovePattern_XY> pattern(new StgMovePattern_XY(obj));
 		pattern->AddCommand(std::make_pair(StgMovePattern_XY::SET_ZERO, 0));
 
 		ADD_CMD(StgMovePattern_XY::SET_S_X, speedX);
@@ -3278,7 +3500,7 @@ gstd::value StgStageScript::Func_ObjMove_AddPatternB2(gstd::script_machine* mach
 		double maxspX = argv[6].as_float();
 		double maxspY = argv[7].as_float();
 
-		ref_unsync_ptr<StgMovePattern_XY> pattern = new StgMovePattern_XY(obj);
+		ref_unsync_ptr<StgMovePattern_XY> pattern(new StgMovePattern_XY(obj));
 
 		ADD_CMD(StgMovePattern_XY::SET_S_X, speedX);
 		ADD_CMD(StgMovePattern_XY::SET_S_Y, speedY);
@@ -3305,7 +3527,7 @@ gstd::value StgStageScript::Func_ObjMove_AddPatternB3(gstd::script_machine* mach
 		double maxspY = argv[7].as_float();
 		int idGraphic = argv[8].as_int();
 
-		ref_unsync_ptr<StgMovePattern_XY> pattern = new StgMovePattern_XY(obj);
+		ref_unsync_ptr<StgMovePattern_XY> pattern(new StgMovePattern_XY(obj));
 
 		ADD_CMD(StgMovePattern_XY::SET_S_X, speedX);
 		ADD_CMD(StgMovePattern_XY::SET_S_Y, speedY);
@@ -3330,7 +3552,7 @@ gstd::value StgStageScript::Func_ObjMove_AddPatternC1(gstd::script_machine* mach
 		double speedY = argv[3].as_float();
 		double angOff = argv[4].as_float();
 
-		ref_unsync_ptr<StgMovePattern_XY_Angle> pattern = new StgMovePattern_XY_Angle(obj);
+		ref_unsync_ptr<StgMovePattern_XY_Angle> pattern(new StgMovePattern_XY_Angle(obj));
 		pattern->AddCommand(std::make_pair(StgMovePattern_XY_Angle::SET_ZERO, 0));
 
 		ADD_CMD(StgMovePattern_XY_Angle::SET_S_X, speedX);
@@ -3356,7 +3578,7 @@ gstd::value StgStageScript::Func_ObjMove_AddPatternC2(gstd::script_machine* mach
 		double angOff = argv[8].as_float();
 		double angVel = argv[9].as_float();
 
-		ref_unsync_ptr<StgMovePattern_XY_Angle> pattern = new StgMovePattern_XY_Angle(obj);
+		ref_unsync_ptr<StgMovePattern_XY_Angle> pattern(new StgMovePattern_XY_Angle(obj));
 
 		ADD_CMD(StgMovePattern_XY_Angle::SET_S_X, speedX);
 		ADD_CMD(StgMovePattern_XY_Angle::SET_S_Y, speedY);
@@ -3387,7 +3609,7 @@ gstd::value StgStageScript::Func_ObjMove_AddPatternC3(gstd::script_machine* mach
 		double angVel = argv[9].as_float();
 		int idShot = argv[10].as_int();
 
-		ref_unsync_ptr<StgMovePattern_XY_Angle> pattern = new StgMovePattern_XY_Angle(obj);
+		ref_unsync_ptr<StgMovePattern_XY_Angle> pattern(new StgMovePattern_XY_Angle(obj));
 
 		ADD_CMD(StgMovePattern_XY_Angle::SET_S_X, speedX);
 		ADD_CMD(StgMovePattern_XY_Angle::SET_S_Y, speedY);
@@ -3422,7 +3644,7 @@ gstd::value StgStageScript::Func_ObjMove_AddPatternC4(gstd::script_machine* mach
 		double angMax = argv[11].as_float();
 		int idShot = argv[12].as_int();
 
-		ref_unsync_ptr<StgMovePattern_XY_Angle> pattern = new StgMovePattern_XY_Angle(obj);
+		ref_unsync_ptr<StgMovePattern_XY_Angle> pattern(new StgMovePattern_XY_Angle(obj));
 
 		ADD_CMD(StgMovePattern_XY_Angle::SET_S_X, speedX);
 		ADD_CMD(StgMovePattern_XY_Angle::SET_S_Y, speedY);
@@ -3451,7 +3673,7 @@ gstd::value StgStageScript::Func_ObjMove_AddPatternD1(gstd::script_machine* mach
 		double ty = argv[3].as_float();
 		double speed = argv[4].as_float();
 
-		ref_unsync_ptr<StgMovePattern_Line_Speed> pattern = new StgMovePattern_Line_Speed(obj);
+		ref_unsync_ptr<StgMovePattern_Line_Speed> pattern(new StgMovePattern_Line_Speed(obj));
 
 		ADD_CMD(StgMovePattern_Line::SET_DX, tx);
 		ADD_CMD(StgMovePattern_Line::SET_DY, ty);
@@ -3473,7 +3695,7 @@ gstd::value StgStageScript::Func_ObjMove_AddPatternD2(gstd::script_machine* mach
 		double frameEnd = argv[4].as_float();
 		double lerpMode = (argc == 6) ? argv[5].as_float() : Math::Lerp::LINEAR;
 
-		ref_unsync_ptr<StgMovePattern_Line_Frame> pattern = new StgMovePattern_Line_Frame(obj);
+		ref_unsync_ptr<StgMovePattern_Line_Frame> pattern(new StgMovePattern_Line_Frame(obj));
 
 		ADD_CMD(StgMovePattern_Line::SET_DX, tx);
 		ADD_CMD(StgMovePattern_Line::SET_DY, ty);
@@ -3495,7 +3717,7 @@ gstd::value StgStageScript::Func_ObjMove_AddPatternD3(gstd::script_machine* mach
 		double weight = argv[4].as_float();
 		double maxSpeed = argv[5].as_float();
 
-		ref_unsync_ptr<StgMovePattern_Line_Weight> pattern = new StgMovePattern_Line_Weight(obj);
+		ref_unsync_ptr<StgMovePattern_Line_Weight> pattern(new StgMovePattern_Line_Weight(obj));
 
 		ADD_CMD(StgMovePattern_Line::SET_DX, tx);
 		ADD_CMD(StgMovePattern_Line::SET_DY, ty);
@@ -3563,7 +3785,7 @@ gstd::value StgStageScript::Func_ObjEnemy_Create(gstd::script_machine* machine, 
 
 	ref_unsync_ptr<DxScriptObjectBase> obj;
 	if (type == TypeObject::Enemy) {
-		obj = new StgEnemyObject(stageController);
+		obj.reset(new StgEnemyObject(stageController));
 	}
 	else if (type == TypeObject::EnemyBoss) {
 		ref_unsync_ptr<StgEnemyBossSceneObject> objScene = enemyManager->GetBossSceneObject();
@@ -3723,7 +3945,7 @@ gstd::value StgStageScript::Func_ObjEnemy_AddIntersectionCircleA(gstd::script_ma
 
 		DxCircle circle(px, py, radius);
 
-		ref_unsync_ptr<StgIntersectionTarget_Circle> target = new StgIntersectionTarget_Circle();
+		ref_unsync_ptr<StgIntersectionTarget_Circle> target(new StgIntersectionTarget_Circle());
 		if (target) {
 			target->SetTargetType(StgIntersectionTarget::TYPE_ENEMY);
 			target->SetObject(obj);
@@ -3746,7 +3968,7 @@ gstd::value StgStageScript::Func_ObjEnemy_SetIntersectionCircleToShot(gstd::scri
 
 		DxCircle circle(px, py, radius);
 
-		ref_unsync_ptr<StgIntersectionTarget_Circle> target = new StgIntersectionTarget_Circle();
+		ref_unsync_ptr<StgIntersectionTarget_Circle> target(new StgIntersectionTarget_Circle());
 		if (target) {
 			target->SetTargetType(StgIntersectionTarget::TYPE_ENEMY);
 			target->SetObject(obj);
@@ -3771,7 +3993,7 @@ gstd::value StgStageScript::Func_ObjEnemy_SetIntersectionCircleToPlayer(gstd::sc
 
 		DxCircle circle(px, py, radius);
 
-		ref_unsync_ptr<StgIntersectionTarget_Circle> target = new StgIntersectionTarget_Circle();
+		ref_unsync_ptr<StgIntersectionTarget_Circle> target(new StgIntersectionTarget_Circle());
 		if (target) {
 			target->SetTargetType(StgIntersectionTarget::TYPE_ENEMY);
 			target->SetObject(obj);
@@ -3848,7 +4070,7 @@ gstd::value StgStageScript::Func_ObjEnemyBossScene_Create(gstd::script_machine* 
 	StgStageController* stageController = script->stageController_;
 	StgEnemyManager* enemyManager = stageController->GetEnemyManager();
 
-	ref_unsync_ptr<DxScriptObjectBase> obj = new StgEnemyBossSceneObject(stageController);
+	ref_unsync_ptr<DxScriptObjectBase> obj(new StgEnemyBossSceneObject(stageController));
 
 	int id = ID_INVALID;
 	if (obj) {
@@ -4101,18 +4323,14 @@ gstd::value StgStageScript::Func_ObjShot_Create(gstd::script_machine* machine, i
 		TypeObject type = (TypeObject)argv[0].as_int();
 
 		ref_unsync_ptr<StgShotObject> obj;
-		if (type == TypeObject::Shot) {
-			obj = new StgNormalShotObject(stageController);
+#define DEF_CASE(_type, _class) case _type: obj.reset(new _class(stageController)); break;
+		switch (type) {
+			DEF_CASE(TypeObject::Shot, StgNormalShotObject);
+			DEF_CASE(TypeObject::LooseLaser, StgLooseLaserObject);
+			DEF_CASE(TypeObject::StraightLaser, StgStraightLaserObject);
+			DEF_CASE(TypeObject::CurveLaser, StgCurveLaserObject);
 		}
-		else if (type == TypeObject::LooseLaser) {
-			obj = new StgLooseLaserObject(stageController);
-		}
-		else if (type == TypeObject::StraightLaser) {
-			obj = new StgStraightLaserObject(stageController);
-		}
-		else if (type == TypeObject::CurveLaser) {
-			obj = new StgCurveLaserObject(stageController);
-		}
+#undef DEF_CASE
 
 		id = ID_INVALID;
 		if (obj) {
@@ -4318,7 +4536,7 @@ gstd::value StgStageScript::Func_ObjShot_SetIntersectionCircleA1(gstd::script_ma
 		float radius = argv[1].as_float();
 		DxCircle circle(px, py, radius);
 
-		ref_unsync_ptr<StgIntersectionTarget_Circle> target = new StgIntersectionTarget_Circle();
+		ref_unsync_ptr<StgIntersectionTarget_Circle> target(new StgIntersectionTarget_Circle());
 		if (target) {
 			target->SetTargetType(typeTarget);
 			target->SetCircle(circle);
@@ -4348,7 +4566,7 @@ gstd::value StgStageScript::Func_ObjShot_SetIntersectionCircleA2(gstd::script_ma
 		float radius = argv[3].as_float();
 		DxCircle circle(px, py, radius);
 
-		ref_unsync_ptr<StgIntersectionTarget_Circle> target = new StgIntersectionTarget_Circle();
+		ref_unsync_ptr<StgIntersectionTarget_Circle> target(new StgIntersectionTarget_Circle());
 		if (target) {
 			target->SetTargetType(typeTarget);
 			target->SetCircle(circle);
@@ -4379,7 +4597,7 @@ gstd::value StgStageScript::Func_ObjShot_SetIntersectionLine(gstd::script_machin
 		float width = argv[5].as_float();
 		DxWidthLine line(px1, py1, px2, py2, width);
 
-		ref_unsync_ptr<StgIntersectionTarget_Line> target = new StgIntersectionTarget_Line();
+		ref_unsync_ptr<StgIntersectionTarget_Line> target(new StgIntersectionTarget_Line());
 		if (target) {
 			target->SetTargetType(typeTarget);
 			target->SetObject(obj);
@@ -5076,7 +5294,7 @@ gstd::value StgStageScript::Func_ObjPatternShot_Create(gstd::script_machine* mac
 	int typeOwner = script->GetScriptType() == TYPE_PLAYER ?
 		StgShotObject::OWNER_PLAYER : StgShotObject::OWNER_ENEMY;
 
-	ref_unsync_ptr<StgShotPatternGeneratorObject> obj = new StgShotPatternGeneratorObject(stageController);
+	ref_unsync_ptr<StgShotPatternGeneratorObject> obj(new StgShotPatternGeneratorObject(stageController));
 	obj->SetTypeOwner(typeOwner);
 
 	int id = script->AddObject(obj);
@@ -5341,7 +5559,7 @@ gstd::value StgStageScript::Func_ObjItem_Create(gstd::script_machine* machine, i
 	int type = argv[0].as_int();
 	ref_unsync_ptr<StgItemObject> obj;
 	if (type == StgItemObject::ITEM_USER) {
-		obj = new StgItemObject_User(stageController);
+		obj.reset(new StgItemObject_User(stageController));
 	}
 
 	int id = ID_INVALID;
@@ -5403,7 +5621,7 @@ gstd::value StgStageScript::Func_ObjItem_SetDefinedMovePatternA1(gstd::script_ma
 	StgItemObject* obj = script->GetObjectPointerAs<StgItemObject>(id);
 	if (obj) {
 		int type = argv[1].as_int();
-		ref_unsync_ptr<StgMovePattern_Item> move = new StgMovePattern_Item(obj);
+		ref_unsync_ptr<StgMovePattern_Item> move(new StgMovePattern_Item(obj));
 		move->SetItemMoveType(type);
 		obj->SetPattern(move);
 	}
@@ -5543,13 +5761,14 @@ gstd::value StgStageScript::Func_ObjPlayer_AddIntersectionCircleA1(gstd::script_
 
 		DxCircle circle(px, py, rHit);
 
-		ref_unsync_ptr<StgIntersectionTarget_Player> target = new StgIntersectionTarget_Player(false);
+		ref_unsync_ptr<StgIntersectionTarget_Player> target(new StgIntersectionTarget_Player(false));
 		target->SetObject(obj);
 		target->SetCircle(circle);
 		obj->AddIntersectionRelativeTarget(target);
 
 		circle.SetR(rHit + rGraze);
-		target = new StgIntersectionTarget_Player(true);
+
+		target.reset(new StgIntersectionTarget_Player(true));
 		target->SetObject(obj);
 		target->SetCircle(circle);
 		obj->AddIntersectionRelativeTarget(target);
@@ -5568,7 +5787,7 @@ gstd::value StgStageScript::Func_ObjPlayer_AddIntersectionCircleA2(gstd::script_
 		DxCircle circle(px, py, 0);
 
 		circle.SetR(rGraze);
-		ref_unsync_ptr<StgIntersectionTarget_Player> targetGraze = new StgIntersectionTarget_Player(true);
+		ref_unsync_ptr<StgIntersectionTarget_Player> targetGraze(new StgIntersectionTarget_Player(true));
 		targetGraze->SetObject(obj);
 		targetGraze->SetCircle(circle);
 		obj->AddIntersectionRelativeTarget(targetGraze);
@@ -5720,7 +5939,7 @@ gstd::value StgStagePlayerScript::Func_CreatePlayerShotA1(gstd::script_machine* 
 	ref_unsync_ptr<StgPlayerObject> objPlayer = stageController->GetPlayerObject();
 	if (objPlayer) {
 		if (stageController->GetShotManager()->GetShotCountAll() < StgShotManager::SHOT_MAX) {
-			ref_unsync_ptr<StgNormalShotObject> obj = new StgNormalShotObject(stageController);
+			ref_unsync_ptr<StgNormalShotObject> obj(new StgNormalShotObject(stageController));
 			id = script->AddObject(obj);
 			if (id != ID_INVALID) {
 				stageController->GetShotManager()->AddShot(obj);
@@ -5795,7 +6014,7 @@ gstd::value StgStagePlayerScript::Func_ObjSpell_Create(gstd::script_machine* mac
 	script->CheckRunInMainThread();
 	StgStageController* stageController = script->stageController_;
 
-	ref_unsync_ptr<StgPlayerSpellObject> obj = new StgPlayerSpellObject(stageController);
+	ref_unsync_ptr<StgPlayerSpellObject> obj(new StgPlayerSpellObject(stageController));
 
 	int id = ID_INVALID;
 	if (obj) {
@@ -5860,7 +6079,7 @@ gstd::value StgStagePlayerScript::Func_ObjSpell_SetIntersectionCircle(gstd::scri
 		float radius = argv[3].as_float();
 		DxCircle circle(px, py, radius);
 
-		ref_unsync_ptr<StgIntersectionTarget_Circle> target = new StgIntersectionTarget_Circle();
+		ref_unsync_ptr<StgIntersectionTarget_Circle> target(new StgIntersectionTarget_Circle());
 		if (target) {
 			target->SetTargetType(StgIntersectionTarget::TYPE_PLAYER_SPELL);
 			target->SetObject(objSpell);
@@ -5886,7 +6105,7 @@ gstd::value StgStagePlayerScript::Func_ObjSpell_SetIntersectionLine(gstd::script
 		float width = argv[5].as_float();
 		DxWidthLine line(px1, py1, px2, py2, width);
 
-		ref_unsync_ptr<StgIntersectionTarget_Line> target = new StgIntersectionTarget_Line();
+		ref_unsync_ptr<StgIntersectionTarget_Line> target(new StgIntersectionTarget_Line());
 		if (target) {
 			target->SetTargetType(StgIntersectionTarget::TYPE_PLAYER_SPELL);
 			target->SetObject(objSpell);
