@@ -108,7 +108,7 @@ private:
 		SPACE_PLAYERSHOT_ENEMYSHOT,
 	};
 	
-	std::vector<unique_ptr<StgIntersectionSpace>> listSpace_;
+	std::vector<StgIntersectionSpace*> listSpace_;
 	std::vector<StgIntersectionTargetPoint> listEnemyTargetPoint_;
 	std::vector<StgIntersectionTargetPoint> listEnemyTargetPointNext_;
 
@@ -131,9 +131,9 @@ public:
 	void RenderVisualizer();
 
 	void SetEnableVisualizer(bool b) { bRenderIntersection_ = b; }
-	bool IsEnableVisualizer() const { return bRenderIntersection_; }
+	bool IsEnableVisualizer() { return bRenderIntersection_; }
 	void SetVisualizerRenderPriority(int pri) { visualizerRenderPri_ = pri; }
-	int GetVisualizerRenderPriority() const { return visualizerRenderPri_; }
+	int GetVisualizerRenderPriority() { return visualizerRenderPri_; }
 
 	void AddTarget(ref_unsync_ptr<StgIntersectionTarget> target);
 	void AddEnemyTargetToShot(ref_unsync_ptr<StgIntersectionTarget> target);
@@ -154,18 +154,14 @@ class StgIntersectionCheckList {
 	std::vector<std::pair<ref_unsync_ptr<StgIntersectionTarget>, ref_unsync_ptr<StgIntersectionTarget>>> listTargetPair_;
 public:
 	StgIntersectionCheckList();
+	virtual ~StgIntersectionCheckList();
 
 	void Clear() { count_ = 0; }
-	size_t GetCheckCount() const { return count_; }
+	size_t GetCheckCount() { return count_; }
 
 	void AddTargetPair(ref_unsync_ptr<StgIntersectionTarget>& targetA, ref_unsync_ptr<StgIntersectionTarget>& targetB);
-
-	const ref_unsync_ptr<StgIntersectionTarget> GetTargetA(size_t index) const {
-		return listTargetPair_[index].first;
-	}
-	const ref_unsync_ptr<StgIntersectionTarget> GetTargetB(size_t index) const {
-		return listTargetPair_[index].second;
-	}
+	ref_unsync_ptr<StgIntersectionTarget> GetTargetA(size_t index);
+	ref_unsync_ptr<StgIntersectionTarget> GetTargetB(size_t index);
 };
 
 class StgIntersectionSpace {
@@ -175,26 +171,25 @@ class StgIntersectionSpace {
 	};
 public:
 	typedef std::vector<ref_unsync_ptr<StgIntersectionTarget>> ListTarget;
-	typedef std::array<StgIntersectionTarget*, 2> TargetCheckListPair;
+	typedef std::pair<StgIntersectionTarget*, StgIntersectionTarget*> TargetCheckListPair;
 protected:
-	StgIntersectionManager* manager;
-
 	DxRect<double> spaceRect_;
 
+	size_t previousCheckCreated_;
 	std::pair<ListTarget, ListTarget> pairTargetList_;
+	std::vector<TargetCheckListPair> pooledCheckList_;
 public:
-	StgIntersectionSpace(StgIntersectionManager* manager, DxRect<double> rect);
+	StgIntersectionSpace();
+	virtual ~StgIntersectionSpace();
 
-	size_t CountTarget() const {
-		return pairTargetList_.first.size() + pairTargetList_.second.size();
-	}
+	bool Initialize(double left, double top, double right, double bottom);
 
 	bool RegistTarget(ListTarget* pVec, ref_unsync_ptr<StgIntersectionTarget>& target);
 	bool RegistTargetA(ref_unsync_ptr<StgIntersectionTarget>& target) { return RegistTarget(&pairTargetList_.first, target); }
 	bool RegistTargetB(ref_unsync_ptr<StgIntersectionTarget>& target) { return RegistTarget(&pairTargetList_.second, target); }
 	void ClearTarget();
 
-	std::vector<TargetCheckListPair> CreateIntersectionCheckList();
+	std::vector<TargetCheckListPair>* CreateIntersectionCheckList(StgIntersectionManager* manager, size_t& total);
 };
 
 class StgIntersectionObject {

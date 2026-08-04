@@ -14,9 +14,12 @@ StgIntersectionManager::StgIntersectionManager() {
 	LONG screenWidth = graphics->GetScreenWidth();
 	LONG screenHeight = graphics->GetScreenHeight();
 
-	for (size_t iSpace = 0; iSpace < 3; iSpace++) {
-		auto rect = DxRect<double>(-100, -100, screenWidth + 100, screenHeight + 100);
-		listSpace_.push_back(make_unique<StgIntersectionSpace>(this, rect));
+	//_CreatePool(2);
+	listSpace_.resize(3);
+	for (size_t iSpace = 0; iSpace < listSpace_.size(); iSpace++) {
+		StgIntersectionSpace* space = new StgIntersectionSpace();
+		space->Initialize(-100, -100, screenWidth + 100, screenHeight + 100);
+		listSpace_[iSpace] = space;
 	}
 
 	{
@@ -93,7 +96,7 @@ StgIntersectionManager::StgIntersectionManager() {
 			{
 				objIntersectionVisualizerLine_->SetPrimitiveType(D3DPT_TRIANGLELIST);
 				objIntersectionVisualizerLine_->SetVertexShaderRendering(true);
-				objIntersectionVisualizerLine_->SetVertexCount(65536U);		// 10922 max renders
+				objIntersectionVisualizerLine_->SetVertexCount(65536U);		//10922 max renders
 
 				objIntersectionVisualizerLine_->SetShader(shaderVisualizerLine_);
 			}
@@ -101,6 +104,10 @@ StgIntersectionManager::StgIntersectionManager() {
 	}
 }
 StgIntersectionManager::~StgIntersectionManager() {
+	for (auto& itr : listSpace_) {
+		ptr_delete(itr);
+	}
+	listSpace_.clear();
 }
 void StgIntersectionManager::Work() {
 	objIntersectionVisualizerCircle_->CleanUp();
@@ -121,41 +128,50 @@ void StgIntersectionManager::Work() {
 	for (auto itr = listSpace_.begin(); itr != listSpace_.end(); itr++) {
 		StgIntersectionSpace* space = *itr;
 
-	for (auto& space : listSpace_) {
-		auto& listCheck = space->CreateIntersectionCheckList();
+		size_t currentCheck = 0;
+		auto listCheck = space->CreateIntersectionCheckList(this, currentCheck);
 
-		for (auto& targetPair : listCheck) {
-			auto& [targetA, targetB] = targetPair;
+		for (size_t iCheck = 0; iCheck < currentCheck; iCheck++) {
+			auto& cTargetPair = listCheck->at(iCheck);
 
-			if (targetA == nullptr || targetB == nullptr)
-				continue;
+			StgIntersectionTarget* targetA = cTargetPair.first;
+			StgIntersectionTarget* targetB = cTargetPair.second;
+			if (targetA == nullptr || targetB == nullptr) continue;
 
 			if (IsIntersected(targetA, targetB)) {
-				auto& ptrA = targetA->GetObject();
-				auto& ptrB = targetB->GetObject();
-
-				if (ptrA) {
-					ptrA->Intersect(targetA, targetB);
-					ptrA->SetIntersected();
-					if (ptrB)
-						ptrA->AddIntersectedId(ptrB);
-				}
-				if (ptrB) {
-					ptrB->Intersect(targetB, targetA);
-					ptrB->SetIntersected();
-					if (ptrA)
-						ptrB->AddIntersectedId(ptrA);
+				ref_unsync_weak_ptr<StgIntersectionObject>& ptrA = targetA->GetObject();
+				ref_unsync_weak_ptr<StgIntersectionObject>& ptrB = targetB->GetObject();
+				{
+					if (ptrA) {
+						ptrA->Intersect(targetA, targetB);
+						ptrA->SetIntersected();
+						if (ptrB)
+							ptrA->AddIntersectedId(ptrB);
+					}
+					if (ptrB) {
+						ptrB->Intersect(targetB, targetA);
+						ptrB->SetIntersected();
+						if (ptrA)
+							ptrB->AddIntersectedId(ptrA);
+					}
 				}
 			}
 		}
 
-		totalCheck += listCheck.size();
-		totalTarget += space->CountTarget();
+		totalCheck += currentCheck;
 		space->ClearTarget();
 	}
 
+	//_ArrangePool();
+
 	ELogger* logger = ELogger::GetInstance();
 	if (auto infoLog = logger->GetInfoPanel()) {
+		/*
+		int countUsed = GetUsedPoolObjectCount();
+		int countCache = GetCachePoolObjectCount();
+		logger->SetInfo(9, L"Intersection count",
+			StringUtility::Format(L"Used=%4d, Cached=%4d, Total=%4d, Check=%4d", countUsed, countCache, countUsed + countCache, totalCheck));
+		*/
 		infoLog->SetInfo(9, "Intersection count",
 			StringUtility::Format("Total=%4d, Check=%4d", totalTarget, totalCheck));
 	}
@@ -163,13 +179,10 @@ void StgIntersectionManager::Work() {
 void StgIntersectionManager::RenderVisualizer() {
 	if (!bRenderIntersection_) return;
 
-	if (countCircleInstance_ > 0U) {
+	if (countCircleInstance_ > 0U)
 		objIntersectionVisualizerCircle_->Render();
-	}
-	if (countLineVertex_ > 0U) {
+	if (countLineVertex_ > 0U)
 		objIntersectionVisualizerLine_->Render();
-	}
-#endif
 }
 void StgIntersectionManager::AddTarget(ref_unsync_ptr<StgIntersectionTarget> target) {
 	if (target == nullptr) return;
@@ -397,8 +410,11 @@ void StgIntersectionManager::AddVisualization(ref_unsync_ptr<StgIntersectionTarg
 //*******************************************************************
 //StgIntersectionCheckList
 //*******************************************************************
-StgIntersectionCheckList::StgIntersectionCheckList() : count_(0) {}
-
+StgIntersectionCheckList::StgIntersectionCheckList() { 
+	count_ = 0; 
+}
+StgIntersectionCheckList::~StgIntersectionCheckList() {
+}
 void StgIntersectionCheckList::AddTargetPair(ref_unsync_ptr<StgIntersectionTarget>& targetA, 
 	ref_unsync_ptr<StgIntersectionTarget>& targetB) 
 {
@@ -411,13 +427,31 @@ void StgIntersectionCheckList::AddTargetPair(ref_unsync_ptr<StgIntersectionTarge
 	}
 	++count_;
 }
+ref_unsync_ptr<StgIntersectionTarget> StgIntersectionCheckList::GetTargetA(size_t index) {
+	ref_unsync_ptr<StgIntersectionTarget> target = listTargetPair_[index].first;
+	listTargetPair_[index].first = nullptr;
+	return target;
+}
+ref_unsync_ptr<StgIntersectionTarget> StgIntersectionCheckList::GetTargetB(size_t index) {
+	ref_unsync_ptr<StgIntersectionTarget> target = listTargetPair_[index].second;
+	listTargetPair_[index].second = nullptr;
+	return target;
+}
 
 //*******************************************************************
 //StgIntersectionSpace
 //*******************************************************************
-StgIntersectionSpace::StgIntersectionSpace(StgIntersectionManager* manager, DxRect<double> rect) 
-	: manager(manager), spaceRect_(rect) {}
-
+StgIntersectionSpace::StgIntersectionSpace() {
+	spaceRect_ = DxRect<double>(0, 0, 0, 0);
+	previousCheckCreated_ = 0;
+}
+StgIntersectionSpace::~StgIntersectionSpace() {
+}
+bool StgIntersectionSpace::Initialize(double left, double top, double right, double bottom) {
+	spaceRect_ = DxRect<double>(left, top, right, bottom);
+	pooledCheckList_.resize(64U);
+	return true;
+}
 bool StgIntersectionSpace::RegistTarget(ListTarget* pVec, ref_unsync_ptr<StgIntersectionTarget>& target) {
 	if (!spaceRect_.IsIntersected(target->GetIntersectionSpaceRect()))
 		return false;
@@ -427,55 +461,71 @@ bool StgIntersectionSpace::RegistTarget(ListTarget* pVec, ref_unsync_ptr<StgInte
 void StgIntersectionSpace::ClearTarget() {
 	pairTargetList_.first.clear();
 	pairTargetList_.second.clear();
+	for (size_t i = 0; i < pooledCheckList_.size(); ++i) {
+		if (i >= previousCheckCreated_) break;
+		pooledCheckList_[i].first = nullptr;
+		pooledCheckList_[i].second = nullptr;
+	}
 }
 
-std::vector<StgIntersectionSpace::TargetCheckListPair> StgIntersectionSpace::CreateIntersectionCheckList() {
-	ListTarget& listTargetA = pairTargetList_.first;
-	ListTarget& listTargetB = pairTargetList_.second;
+std::vector<StgIntersectionSpace::TargetCheckListPair>* StgIntersectionSpace::CreateIntersectionCheckList(
+	StgIntersectionManager* manager, size_t& total) 
+{
+	ListTarget* pListTargetA = &pairTargetList_.first;
+	ListTarget* pListTargetB = &pairTargetList_.second;
 
 	CriticalSection& criticalSection = manager->GetLock();
-
-	std::vector<StgIntersectionSpace::TargetCheckListPair> res;
+	std::atomic_uint count = 0;
 
 	if (manager->IsEnableVisualizer()) {
-		for (auto& pTarget : listTargetA)
+		/*
+		ParallelFor(pListTargetA->size(), [&](size_t i) {
+			manager->AddVisualization(pListTargetA->at(i));
+		});
+		ParallelFor(pListTargetB->size(), [&](size_t i) {
+			manager->AddVisualization(pListTargetB->at(i));
+		});
+		*/
+		for (auto& pTarget : *pListTargetA)
 			manager->AddVisualization(pTarget);
-		for (auto& pTarget : listTargetB)
+		for (auto& pTarget : *pListTargetB)
 			manager->AddVisualization(pTarget);
 	}
 
-	if (listTargetA.size() > 0 && listTargetB.size() > 0) {
+	if (pListTargetA->size() > 0 && pListTargetB->size() > 0) {
 		auto CheckSpaceRect = [&](StgIntersectionTarget* targetA, StgIntersectionTarget* targetB) {
 			if (targetA == nullptr || targetB == nullptr) return;
-
-			auto& boundA = targetA->GetIntersectionSpaceRect();
-			auto& boundB = targetB->GetIntersectionSpaceRect();
-
+			const DxRect<LONG>& boundA = targetA->GetIntersectionSpaceRect();
+			const DxRect<LONG>& boundB = targetB->GetIntersectionSpaceRect();
 			if (boundA.IsIntersected(boundB)) {
 				Lock lock(criticalSection);
-
-				res.push_back({ targetA, targetB });
+				if ((size_t)count >= pooledCheckList_.size()) {
+					pooledCheckList_.resize(pooledCheckList_.size() * 2);
+				}
+				pooledCheckList_[count.load()] = std::make_pair(targetA, targetB);
+				++count;
 			}
 		};
 
-		// Attempt to most efficiently utilize multithreading
-		if (listTargetA.size() >= listTargetB.size()) {
-			ParallelFor(listTargetA.size(), [&](size_t i) {
-				auto& targetA = listTargetA[i];
-				for (auto& targetB : listTargetB) {
-					CheckSpaceRect(targetA.get(), targetB.get());
+		//Attempt to most efficiently utilize multithreading
+		if (pListTargetA->size() >= pListTargetB->size()) {
+			ParallelFor(pListTargetA->size(), [&](size_t iA) {
+				StgIntersectionTarget* pTargetA = pListTargetA->at(iA).get();
+				for (auto itrB = pListTargetB->begin(); itrB != pListTargetB->end(); ++itrB) {
+					StgIntersectionTarget* pTargetB = itrB->get();
+					CheckSpaceRect(pTargetA, pTargetB);
 				}
 			});
 		}
 		else {
-			ParallelFor(listTargetB.size(), [&](size_t i) {
-				auto& targetB = listTargetB[i];
-				for (auto& targetA : listTargetA) {
-					CheckSpaceRect(targetA.get(), targetB.get());
+			ParallelFor(pListTargetB->size(), [&](size_t iB) {
+				StgIntersectionTarget* pTargetB = pListTargetB->at(iB).get();
+				for (auto itrA = pListTargetA->begin(); itrA != pListTargetA->end(); ++itrA) {
+					StgIntersectionTarget* pTargetA = itrA->get();
+					CheckSpaceRect(pTargetA, pTargetB);
 				}
 			});
 		}
-
 		/*
 		//No multithreading mode
 		for (auto itrA = pListTargetA->begin(); itrA != pListTargetA->end(); ++itrA) {
@@ -488,7 +538,9 @@ std::vector<StgIntersectionSpace::TargetCheckListPair> StgIntersectionSpace::Cre
 		*/
 	}
 
-	return res;
+	total = (size_t)count;
+	previousCheckCreated_ = total;
+	return &pooledCheckList_;
 }
 
 //*******************************************************************
@@ -576,6 +628,8 @@ int StgIntersectionObject::GetDxScriptObjectID() {
 //StgIntersectionTarget
 //*******************************************************************
 StgIntersectionTarget::StgIntersectionTarget() {
+	//mortonNo_ = -1;
+	ZeroMemory(&intersectionSpace_, sizeof(RECT));
 }
 std::wstring StgIntersectionTarget::GetInfoAsString() {
 	std::wstring res;
@@ -603,7 +657,7 @@ std::wstring StgIntersectionTarget::GetInfoAsString() {
 		res += L"NULL";
 	}
 	else {
-		auto dxObj = ref_unsync_ptr<DxScriptObjectBase>::Cast(obj_.Lock());
+		ref_unsync_ptr<DxScriptObjectBase> dxObj = ref_unsync_ptr<DxScriptObjectBase>::Cast(obj_.Lock());
 
 		if (dxObj == nullptr)
 			res += L"UNKNOWN";
