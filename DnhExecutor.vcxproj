@@ -107,8 +107,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <AdditionalOptions>/utf-8 /Zc:nrvo %(AdditionalOptions)</AdditionalOptions>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <AdditionalIncludeDirectories>
-      </AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\dnhph3sx\SFML-2.6.2-windows-vc17-32-bit\SFML-2.6.2\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Midl>
       <SuppressStartupBanner>true</SuppressStartupBanner>
@@ -130,7 +129,7 @@
       <SubSystem>Windows</SubSystem>
       <IgnoreSpecificDefaultLibraries>libc.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <OutputFile>bin_th_dnh/th_dnh_ph3sx.exe</OutputFile>
-      <AdditionalDependencies>sfml_network_static.lib;sfml_system_static.lib;ws2_32.lib;legacy_stdio_definitions.lib;%(AdditionalDependencies);</AdditionalDependencies>
+      <AdditionalDependencies>sfml-network-s.lib;sfml-system-s.lib;ws2_32.lib;winmm.lib;legacy_stdio_definitions.lib;%(AdditionalDependencies);</AdditionalDependencies>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
       <AdditionalOptions>/NODEFAULTLIB:"libcmt.lib" %(AdditionalOptions)</AdditionalOptions>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>

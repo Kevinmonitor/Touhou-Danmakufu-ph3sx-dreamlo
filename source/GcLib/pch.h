@@ -195,7 +195,7 @@
 #if defined(DNH_PROJ_EXECUTOR)
 
 	#include <sfml/Network.hpp>
-	#pragma comment(lib, "sfml_network_static.lib")
+	#pragma comment(lib, "sfml-network-s.lib")
 	#pragma comment(lib, "ws2_32.lib")
 
 #endif

@@ -92,6 +92,12 @@ protected:
 public:
 	StgControlScript(StgSystemController* systemController);
 
+	// online
+
+	DNH_FUNCAPI_DECL_(Func_SaveEntryToLeaderboard);
+	DNH_FUNCAPI_DECL_(Func_HTTPGetRequest);
+	DNH_FUNCAPI_DECL_(Func_GetLeaderboardData);
+
 	// Common data
 	DNH_FUNCAPI_DECL_(Func_SetCommonData);
 	DNH_FUNCAPI_DECL_(Func_GetCommonData);
