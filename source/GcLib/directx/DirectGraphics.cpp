@@ -223,7 +223,7 @@ bool DirectGraphics::Initialize(HWND hWnd, const DirectGraphicsConfig& config) {
 		}
 
 		// Let possible D3D9 translation layer catch up (awful)
-		Sleep(50);
+		Sleep(30);
 
 		D3DADAPTER_IDENTIFIER9 id;
 		pDirect3D->GetAdapterIdentifier(0, 0, &id);

@@ -80,6 +80,18 @@ void StgControlScriptInformation::LoadReplayInformation(std::wstring pathMainScr
 //StgControlScript
 //*******************************************************************
 static const std::vector<function> stgControlFunction = {
+
+	// online cock and balls
+
+	{ "SaveEntryToLeaderboard", StgControlScript::Func_SaveEntryToLeaderboard, 4},
+	{ "HTTPGetRequest", StgControlScript::Func_HTTPGetRequest, 3},
+
+	//// leaderboard public code -> leaderboard data type
+	//{ "GetLeaderboardData", StgControlScript::Func_GetLeaderboardData, 2},
+
+	// this is the correct one to look for
+	{ "GetLeaderboardData", StgControlScript::Func_GetLeaderboardData, 1},
+
 	// Common data
 	{ "SetCommonData", StgControlScript::Func_SetCommonData, 2 },
 	{ "GetCommonData", StgControlScript::Func_GetCommonData, 2 },
